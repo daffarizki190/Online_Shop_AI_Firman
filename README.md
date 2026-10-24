@@ -37,6 +37,7 @@ Server statis tanpa dependensi (`server.js`). Dek spesifikasi ada di `http://loc
 | **Katalog** | `#/shop` | 8 produk 4 kategori (T-Shirt, Longsleeve, Hoodie, Kemeja). **Pencarian + autocomplete**, chip kategori, sort (terlaris/harga/rating), kartu produk berbintang + badge "AI: Size X" per produk. |
 | **PDP per produk** | `#/produk/:sku` | Galeri + **zoom foto (ketuk 2×)**, stok & gramasi, size selector berbadge AI, kartu Atelier, **ulasan & rating** (ringkasan, breakdown bintang, tulis ulasan), produk serupa, ringkasan retur. |
 | **Studio → Fitting** | `#/studio` → `#/fitting` | Konsultasi 30 dtk, rekomendasi per SKU (heatmap, zona, tabel kelonggaran). |
+| **Cermin AI (Try-On)** | `#/cermin` | **Virtual try-on via kamera**: pose tracking MediaPipe (100% on-device, privasi), pakaian diposisikan mengikuti bahu secara live, estimasi lebar bahu dari kamera dicek ke size terpilih, ganti size real-time, ambil foto hasil. Fallback tanpa kamera/model tetap jalan. |
 | **Bag · 1 Informasi** | `#/bag` | Item multi-produk + lencana "✓ Rekomendasi AI", voucher `FITPERTAMA`. |
 | **Pengiriman · 2** | `#/pengiriman` + `#/alamat` | Form alamat tervalidasi; **ongkir otomatis per zona provinsi** (Jakarta/Jawa/Bali-Nusra) × 3 layanan kurir. |
 | **Pembayaran · 3** | `#/pembayaran` | VA / GoPay / **QRIS (kode QR tergenerasi + simulasi scan)** / Kartu Kredit; total final; badge terenkripsi. |

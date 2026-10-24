@@ -73,8 +73,20 @@
   ];
   const FIT_LABEL = { tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' };
   const STATUS_LABEL = { fit: 'Pas', tight: 'Agak Ketat', loose: 'Agak Longgar' };
-  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan'];
+  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'cermin', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan'];
   const DEMO_USER = { name: 'Demo Aura', email: 'demo@aura.id', phone: '0812 0000 0000', pass: '123456' };
+
+  /* Bentuk garmen & warna untuk overlay Cermin AI */
+  const MIRROR_SHAPES = {
+    tee: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 900 Q448 930 574 900 L574 470 L596 512 L680 470 L628 336 L540 300 Q448 372 356 300 Z',
+    hoodie: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 930 Q448 960 574 930 L574 470 L596 512 L680 470 L628 336 L540 300 Q448 396 356 300 Z',
+    shirt: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 940 Q448 966 574 940 L574 470 L596 512 L680 470 L628 336 L540 300 L470 330 L426 300 Z',
+  };
+  const SHAPE_BY_CAT = { 'T-Shirt': 'tee', 'Longsleeve': 'tee', 'Hoodie': 'hoodie', 'Kemeja': 'shirt' };
+  const MIRROR_COLORS = {
+    '04 Noir': '#1F1F23', '05 Bone': '#E8E2D4', '06 Slate': '#6E7278', '07 Ink': '#26282E',
+    '08 Carbon': '#313136', '09 Moss': '#5C6650', '10 Ecru': '#EDE6D6', '11 Indigo': '#3E4668',
+  };
 
   const bagPrefs = load(STORE.bagPrefs, {});
   const state = {
@@ -105,6 +117,9 @@
     chat: [],
     chatOpen: false,
     paying: false,
+    mirrorSku: null,
+    mirrorSize: null,
+    mirror: { on: false, stream: null, raf: 0, landmarker: null, lm: null, lastT: -1, tracking: false },
     viewers: 18 + Math.floor(Math.random() * 14),
   };
 
@@ -166,6 +181,7 @@
     if (!state.auth && route !== 'login') { location.replace('#/login'); return; }
     if (state.auth && route === 'login') route = 'shop';
 
+    if (state.route === 'cermin' && route !== 'cermin') stopMirror();
     state.route = route;
     state.param = param;
 
@@ -181,6 +197,7 @@
     if (route === 'produk') renderPdp(param);
     if (route === 'studio') renderStudio();
     if (route === 'fitting') renderFitting();
+    if (route === 'cermin') renderCermin();
     if (route === 'saved') renderSaved();
     if (route === 'bag') renderBag();
     if (route === 'pengiriman') renderPengiriman();
@@ -425,6 +442,9 @@
         </div>
         <div class="atelier-card__row">
           <button type="button" class="btn btn--outline btn--sm btn--block" data-goto="studio">Hitung Fit Saya →</button>
+        </div>
+        <div class="atelier-card__row">
+          <button type="button" class="link-btn" data-mirror data-mirror-sku="${p.sku_id}">🪞 Atau lihat langsung di Cermin AI</button>
         </div>`;
       return;
     }
@@ -438,6 +458,9 @@
       <div class="atelier-card__row">
         <button type="button" class="link-btn" data-goto="studio">Ubah profil</button>
         <button type="button" class="link-btn" data-goto="fitting">Lihat detail fit →</button>
+      </div>
+      <div class="atelier-card__row">
+        <button type="button" class="link-btn" data-mirror data-mirror-sku="${p.sku_id}">🪞 Coba Cermin AI</button>
       </div>`;
   }
 
@@ -627,6 +650,8 @@
         : `AI tetap merekomendasikan ${r.best.size_label}.`}</p>
       <span class="method-badge">◎ Kuesioner · ${FIT_LABEL[prof.fit_preference]} · ${SHAPES.find((s) => s.id === prof.metrics.body_shape)?.label ?? '—'}</span>
 
+      <button type="button" class="btn btn--outline btn--sm btn--block" data-mirror data-mirror-sku="${p.sku_id}" style="margin:12px 0 2px">🪞 Coba Cermin AI — lihat pas di badan lewat kamera</button>
+
       ${isBest ? `<div class="proof"><span class="proof__check">✓</span><span><b>${proof}% pembeli</b> dengan TB ${prof.metrics.height_cm} / BB ${prof.metrics.weight_kg} kg memilih ${r.best.size_label} &amp; tidak mengembalikannya. <span class="mono-muted">(data demo)</span></span></div>` : ''}
 
       <div class="tee-figure">${teeSvg(preview.zones)}</div>
@@ -691,6 +716,215 @@
     cta.textContent = available
       ? `Pesan dengan Ukuran ${preview.size_label} · ${fmtK(p.price)}`
       : `Size ${preview.size_label} Stok Habis`;
+  }
+
+  /* -------------------------------------------------- CERMIN AI (virtual try-on) */
+  function renderCermin() {
+    const p = prod(state.mirrorSku || state.currentSku);
+    state.mirrorSku = p.sku_id;
+    $('#cermin-prod-label').textContent = `${p.name} — ${p.variant}`;
+
+    const sizes = p.sizes.map((s) => s.size_label).filter((l) => inStock(p, l));
+    const r = state.results[p.sku_id];
+    const def = (r && sizes.includes(r.best.size_label) ? r.best.size_label : null)
+      || (state.selectedSize && sizes.includes(state.selectedSize) ? state.selectedSize : null)
+      || sizes[Math.min(1, sizes.length - 1)];
+    if (!sizes.includes(state.mirrorSize)) state.mirrorSize = def;
+
+    $('#cermin-sizes').innerHTML = sizes.map((l) =>
+      `<button type="button" class="size-chip" role="radio" aria-checked="${state.mirrorSize === l}" data-mirror-size="${l}">${l}</button>`).join('');
+
+    if (!state.profile) {
+      $('#cermin-note').textContent = '🪞 Pose AI berjalan di perangkat. Tip: isi Atelier Consultation dulu agar estimasi bahu memakai tinggi badan Anda.';
+    }
+    startMirror();
+  }
+
+  async function startMirror() {
+    const video = $('#mirror-video');
+    const m = state.mirror;
+    if (m.on) return;
+    m.on = true;
+    $('#mirror-fallback').hidden = true;
+
+    // 1) Buka kamera depan (efek cermin lewat CSS scaleX)
+    try {
+      m.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 } }, audio: false,
+      });
+      video.srcObject = m.stream;
+      await video.play().catch(() => {});
+    } catch (e) {
+      m.on = false;
+      $('#mirror-fallback').hidden = false;
+      $('#hud-status').textContent = 'Kamera tidak aktif';
+      return;
+    }
+
+    // 2) Muai pose tracker (MediaPipe, on-device). Jika gagal → mode statis.
+    m.tracking = false;
+    $('#hud-status').textContent = 'Memuat model pose…';
+    try {
+      const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000));
+      const vision = await Promise.race([
+        import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'),
+        timeout,
+      ]);
+      const fileset = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+      m.landmarker = await vision.PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: {
+          modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU',
+        },
+        runningMode: 'VIDEO',
+        numPoses: 1,
+      });
+      m.tracking = true;
+    } catch (e) {
+      m.landmarker = null;
+      m.tracking = false;
+      $('#hud-status').textContent = 'Mode statis (pelacakan tidak tersedia)';
+    }
+
+    m.lastT = -1;
+    const loop = () => {
+      if (!state.mirror.on) return;
+      if (m.tracking && m.landmarker && video.readyState >= 2 && video.currentTime !== m.lastT) {
+        m.lastT = video.currentTime;
+        try {
+          const res = m.landmarker.detectForVideo(video, performance.now());
+          m.lm = res?.landmarks?.[0] || null;
+        } catch (e) { /* frame dilewati */ }
+      }
+      drawMirror();
+      m.raf = requestAnimationFrame(loop);
+    };
+    m.raf = requestAnimationFrame(loop);
+  }
+
+  function stopMirror() {
+    const m = state.mirror;
+    if (!m.on) return;
+    m.on = false;
+    cancelAnimationFrame(m.raf);
+    try { m.stream?.getTracks().forEach((t) => t.stop()); } catch (e) { /* sudah berhenti */ }
+    try { m.landmarker?.close(); } catch (e) { /* sudah tertutup */ }
+    m.stream = null; m.landmarker = null; m.lm = null; m.tracking = false;
+  }
+
+  /** Posisi landmark (dinormalisasi 0-1 ruang video) → koordinat kanvas efek-cermin (object-fit: cover). */
+  function lmToCanvas(lm, canvas, video) {
+    const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
+    const scale = Math.max(canvas.width / vw, canvas.height / vh);
+    const dw = vw * scale, dh = vh * scale;
+    const ox = (canvas.width - dw) / 2, oy = (canvas.height - dh) / 2;
+    return {
+      x: ox + (1 - lm.x) * dw, // dicerminkan
+      y: oy + lm.y * dh,
+    };
+  }
+
+  function drawMirror() {
+    const video = $('#mirror-video');
+    const canvas = $('#mirror-canvas');
+    if (!video || !canvas) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = Math.round(canvas.clientWidth * dpr), H = Math.round(canvas.clientHeight * dpr);
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    const p = prod(state.mirrorSku || state.currentSku);
+    const lm = state.mirror.lm;
+    const shape = new Path2D(MIRROR_SHAPES[SHAPE_BY_CAT[p.category] || 'tee']);
+    const color = MIRROR_COLORS[p.variant] || '#2E2E33';
+
+    // Geometri tubuh (fallback statis di tengah bila belum terkunci)
+    let cx, topY, shoulderPx;
+    const lmOk = lm && lm[11] && lm[12] && lm[11].visibility > 0.5 && lm[12].visibility > 0.5;
+    if (lmOk) {
+      const sL = lmToCanvas(lm[11], canvas, video);
+      const sR = lmToCanvas(lm[12], canvas, video);
+      shoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
+      cx = (sL.x + sR.x) / 2;
+      topY = Math.min(sL.y, sR.y) - shoulderPx * 0.22;
+      $('#hud-status').textContent = state.mirror.tracking ? 'Terkunci ✓ (diproses di perangkat)' : 'Mode statis';
+    } else {
+      shoulderPx = W * 0.26;
+      cx = W / 2;
+      topY = H * 0.24;
+      if (state.mirror.tracking) $('#hud-status').textContent = 'Mengunci tubuh… jaga jarak ±1–2 m';
+    }
+
+    // Skala ukuran: tiap langkah size ±5.5% lebar
+    const idx = p.sizes.findIndex((s) => s.size_label === state.mirrorSize);
+    const idxM = p.sizes.findIndex((s) => s.size_label === 'M');
+    const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
+    const gw = shoulderPx * 2.08 * sizeFactor;
+    const gh = gw * (1200 / 896);
+
+    ctx.save();
+    ctx.translate(cx - gw / 2, topY);
+    ctx.scale(gw / 896, gh / 1200);
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = color;
+    ctx.fill(shape);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3.5 * (896 / gw);
+    ctx.strokeStyle = 'rgba(18,18,18,0.35)';
+    ctx.stroke(shape);
+    // garis bahu sebagai acuan
+    ctx.beginPath();
+    ctx.moveTo(356, 318); ctx.lineTo(540, 318);
+    ctx.lineWidth = 2.5 * (896 / gw);
+    ctx.strokeStyle = 'rgba(250,249,246,0.55)';
+    ctx.stroke();
+    ctx.restore();
+
+    // HUD: estimasi lebar bahu (cm) memakai tinggi badan profil sebagai skala
+    const hudSh = $('#hud-shoulder');
+    const hudFit = $('#hud-fit');
+    hudFit.className = 'hud-chip';
+    if (lmOk) {
+      const heightCm = state.profile?.metrics.height_cm || 170;
+      let bodyPx = 0;
+      if (lm[28] && lm[28].visibility > 0.4) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
+      else if (lm[24]) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[24], canvas, video).y) * 1.95;
+      if (bodyPx > 0) {
+        const shoulderCm = (shoulderPx / (bodyPx / heightCm));
+        const sz = p.sizes.find((s) => s.size_label === state.mirrorSize);
+        const diff = (sz?.shoulder_width_cm || 46) * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) - shoulderCm;
+        hudSh.textContent = `Bahu Anda ±${Math.round(shoulderCm)} cm`;
+        if (diff >= -2.5 && diff <= 3.5) { hudFit.textContent = `Size ${state.mirrorSize} ✓ Pas di bahu`; hudFit.classList.add('hud-chip--ok'); }
+        else if (diff < -2.5) { hudFit.textContent = `Size ${state.mirrorSize} agak ketat`; hudFit.classList.add('hud-chip--warn'); }
+        else { hudFit.textContent = `Size ${state.mirrorSize} agak longgar`; }
+      }
+    } else {
+      hudSh.textContent = 'Bahu: mengunci…';
+      hudFit.textContent = `Size ${state.mirrorSize || '—'}`;
+    }
+  }
+
+  function captureMirror() {
+    const video = $('#mirror-video');
+    const canvas = $('#mirror-canvas');
+    if (!video || !video.videoWidth) { toast('Kamera belum aktif.'); return; }
+    const out = document.createElement('canvas');
+    out.width = canvas.width; out.height = canvas.height;
+    const ctx = out.getContext('2d');
+    // gambar video ter-cermin (object-fit cover)
+    const scale = Math.max(out.width / video.videoWidth, out.height / video.videoHeight);
+    const dw = video.videoWidth * scale, dh = video.videoHeight * scale;
+    ctx.save();
+    ctx.translate(out.width, 0); ctx.scale(-1, 1);
+    ctx.drawImage(video, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+    ctx.restore();
+    ctx.drawImage(canvas, 0, 0);
+    const url = out.toDataURL('image/png');
+    $('#foto-img').src = url;
+    $('#foto-download').href = url;
+    openSheet('sheet-foto');
+    toast('Foto tersimpan — bisa diunduh atau dibagikan.');
   }
 
   /* -------------------------------------------------- SAVED */
@@ -1471,6 +1705,9 @@
       const openSku = e.target.closest('[data-open-sku]');
       if (openSku) { goto('produk/' + openSku.dataset.openSku); return; }
 
+      const mirrorBtn = e.target.closest('[data-mirror]');
+      if (mirrorBtn) { state.mirrorSku = mirrorBtn.dataset.mirrorSku || state.currentSku; state.mirrorSize = null; goto('cermin'); return; }
+
       const orderOpen = e.target.closest('[data-order-open]');
       if (orderOpen) { goto('pesanan/' + orderOpen.dataset.orderOpen); return; }
 
@@ -1532,6 +1769,13 @@
         return;
       }
       if (t.id === 'btn-logout') { logout(); return; }
+      if (t.dataset.mirrorSize) {
+        state.mirrorSize = t.dataset.mirrorSize;
+        $$('#cermin-sizes .size-chip').forEach((c) => c.setAttribute('aria-checked', String(c === t)));
+        return;
+      }
+      if (t.id === 'mirror-capture') { captureMirror(); return; }
+      if (t.id === 'mirror-retry') { startMirror(); return; }
       if (t.id === 'open-size-chart') { renderSizeChart(); openSheet('sheet-size-chart'); return; }
       if (t.hasAttribute('data-close-sheet')) { closeSheet(); return; }
       if (t.classList.contains('thumb')) {

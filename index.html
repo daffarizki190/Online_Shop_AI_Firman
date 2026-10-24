@@ -223,6 +223,44 @@
         </div>
       </section>
 
+      <!-- ============ LAYAR: CERMIN AI (Virtual Try-On) ============ -->
+      <section class="screen screen--sub" id="screen-cermin" data-tab="studio" aria-label="Cermin AI">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="fitting" aria-label="Kembali ke hasil fitting">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong>Cermin AI</strong><span class="mono" id="cermin-prod-label"></span></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+
+        <div class="screen__body">
+          <div class="mirror-stage" id="mirror-stage">
+            <video id="mirror-video" playsinline muted autoplay></video>
+            <canvas id="mirror-canvas"></canvas>
+            <div class="mirror-hud" id="mirror-hud">
+              <span class="hud-chip" id="hud-status">Mengunci tubuh…</span>
+              <span class="hud-chip hud-chip--dim" id="hud-shoulder">Bahu: —</span>
+              <span class="hud-chip" id="hud-fit">Size — · —</span>
+            </div>
+          </div>
+
+          <div class="empty-state" id="mirror-fallback" hidden>
+            <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/><rect x="2" y="8" width="20" height="12" rx="2"/><circle cx="12" cy="14" r="3.2"/></svg></div>
+            <p class="serif-sm">Kamera belum siap</p>
+            <p class="muted-sm">Izinkan akses kamera di browser (butuh HTTPS — sudah aktif di situs ini). Proses 100% di perangkat, video tidak dikirim ke mana pun.</p>
+            <button type="button" class="btn btn--outline btn--sm" id="mirror-retry">Coba Buka Kamera</button>
+          </div>
+
+          <p class="label-xs" style="padding:0 16px">Coba Ukuran</p>
+          <div class="size-chips" id="cermin-sizes" style="padding:0 16px"></div>
+          <p class="fineprint" style="padding:8px 16px 16px" id="cermin-note">🪞 Pose AI berjalan di perangkat — pakaian diposisikan mengikuti bahu Anda, dan lebar bahu diestimasi dari kamera untuk cek kecocokan size.</p>
+        </div>
+
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="mirror-capture">Ambil Foto 📸</button>
+        </div>
+      </section>
+
       <!-- ============ LAYAR: SAVED ============ -->
       <section class="screen" id="screen-saved" data-tab="saved" aria-label="Item tersimpan">
         <header class="appbar"><span class="brand brand--sm">SAVED</span></header>
@@ -429,6 +467,16 @@
         <p class="label-xs" style="margin-top:10px">Nama <span style="font-weight:400;color:var(--muted)">(opsional)</span></p>
         <input type="text" class="control" id="review-name" placeholder="Nama Anda">
         <button type="button" class="btn btn--dark btn--block" id="review-submit" style="margin-top:14px">Kirim Ulasan</button>
+      </div>
+
+      <div class="bottom-sheet" id="sheet-foto" role="dialog" aria-modal="true" aria-labelledby="foto-title" hidden>
+        <div class="bottom-sheet__grip" aria-hidden="true"></div>
+        <h4 id="foto-title">Hasil Cermin AI</h4>
+        <img id="foto-img" alt="Foto hasil coba pakaian lewat Cermin AI" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:12px 0">
+        <div class="row-between">
+          <a class="btn btn--outline btn--sm" id="foto-download" download="aura-cermin.png">Unduh Foto</a>
+          <button type="button" class="btn btn--dark btn--sm" data-close-sheet>Tutup</button>
+        </div>
       </div>
     </div>
 
