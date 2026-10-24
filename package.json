@@ -3,6 +3,6 @@
   "private": true,
   "description": "Aura Atelier — AI Fit Fashion (SPA + serverless API + Vercel Blob DB)",
   "dependencies": {
-    "@vercel/blob": "^1.4.0"
+    "@vercel/blob": "^2.8.2"
   }
 }
