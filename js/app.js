@@ -348,6 +348,16 @@
           </dl>
         </details>
         <details class="acc">
+          <summary>Konstruksi</summary>
+          <ul class="acc-list">
+            <li>${p.fabric_specs.material}</li>
+            <li>Ribbed bound neckline — tidak melar meski sering dipakai</li>
+            <li>Double-needle hem bawah &amp; lengan</li>
+            <li>Garment-washed — susut stabil ±${p.fabric_specs.shrinkage_after_wash_pct}%</li>
+            <li>Dijahit lokal, QC per potongan</li>
+          </ul>
+        </details>
+        <details class="acc">
           <summary>Pengiriman &amp; Retur</summary>
           <ul class="acc-list">
             <li>Dikemas 1×24 jam · ongkir otomatis mengikuti zona alamat</li>
@@ -1002,6 +1012,11 @@
   /* -------------------------------------------------- PEMBAYARAN */
   function renderPembayaran() {
     if (!requireCart()) return;
+    if (!state.address) {
+      toast('Isi alamat pengiriman dulu sebelum membayar.');
+      goto('pengiriman');
+      return;
+    }
     const body = $('#pembayaran-body');
     const t = cartTotals();
     const a = state.address;
@@ -1062,6 +1077,7 @@
 
   function pay() {
     if (state.paying) return;
+    if (!cartCount() || !state.address) return;
     const t = cartTotals();
     const labels = Object.fromEntries(PAYMENTS);
     const btn = $('#pembayaran-cta');
