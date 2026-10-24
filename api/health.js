@@ -1,15 +1,30 @@
 /** GET /api/health — cek koneksi database (roundtrip tulis-baca). */
-import { json, preflight, readJSON, writeJSON } from './_lib.js';
+import { put, get } from '@vercel/blob';
+import { json, preflight } from './_lib.js';
 
 export const OPTIONS = preflight;
 
 export async function GET() {
+  const diag = { ok: false, mode: 'vercel-blob' };
   try {
-    const at = Date.now();
-    await writeJSON('health:ping', { at });
-    const back = await readJSON('health:ping', null);
-    return json({ ok: !!back, mode: 'vercel-blob', at: back?.at });
+    await put('health:ping', JSON.stringify({ at: Date.now() }), {
+      access: 'private', contentType: 'application/json', allowOverwrite: true,
+    });
+    diag.put = 'ok';
+    try {
+      const res = await get('health:ping', { access: 'private', useCache: false });
+      diag.getFound = !!res;
+      if (res) {
+        diag.readBack = JSON.parse(await res.blob.text());
+        diag.ok = true;
+      }
+    } catch (e) {
+      diag.getError = String(e && e.message || e);
+      diag.errName = e && e.constructor && e.constructor.name;
+      diag.errBody = await Promise.resolve(e && e.text && typeof e.text === 'function' ? e.text().catch?.(() => '') : '').catch(() => '');
+    }
   } catch (e) {
-    return json({ ok: false, error: String(e && e.message || e) });
+    diag.putError = String(e && e.message || e);
   }
+  return json(diag);
 }
