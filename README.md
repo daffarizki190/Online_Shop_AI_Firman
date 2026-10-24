@@ -45,7 +45,21 @@ Server statis tanpa dependensi (`server.js`). Dek spesifikasi ada di `http://loc
 | **Bantuan & Toko** | `#/bantuan` | Profil toko + logo + statistik, jam operasional, kontak (WA/Email/Telepon), **live chat bot**, FAQ, **kebijakan retur/refund 7 hari**, catatan SSL. |
 | **Akun** | `#/akun` | Profil, profil fit, alamat (zona), riwayat pesanan berstatus, bantuan, keluar. |
 
-Status (sesi, profil, keranjang, wishlist, alamat, pesanan, ulasan pengguna) tersimpan di `localStorage` dengan kunci `aura.*.v1`. Wishlist (SAVED) & metode bayar termasuk QRIS tersedia sesuai checklist toko online profesional (Jubelio/Youtap). SSL/HTTPS aktif otomatis saat di-host (mis. Vercel/Netlify).
+## 🗄️ Database & API (Vercel)
+
+Data pengguna tersimpan di **Vercel Blob** (`aura-db`, akses privat OIDC) lewat **serverless API** di folder `api/` — sehingga **terbagi lintas perangkat** (mode hybrid: otomatis fallback ke localStorage saat offline):
+
+| Endpoint | Fungsi |
+| :-- | :-- |
+| `GET /api/health` | Cek koneksi DB (roundtrip tulis-baca) |
+| `POST /api/auth` | Register/login — sandi di-hash **scrypt**, sesi token HMAC (`AUTH_SECRET`) |
+| `GET/POST /api/orders` | Riwayat pesanan per akun (upsert by id, sinkron otomatis setelah bayar) |
+| `GET/POST /api/reviews` | Ulasan pengguna per SKU — tampil untuk semua pembeli |
+| `GET/PUT /api/profile` | Profil fit (skema `user_body_profiles`) — ikut pindah perangkat |
+
+Skema key Blob: `user:<email>`, `orders:<email>`, `reviews:<sku>`, `profile:<email>`. Katalog produk tetap statis di `js/data.js` (konten, bukan data pengguna).
+
+Status (sesi, profil, keranjang, wishlist, alamat) tetap ada di `localStorage` (`aura.*.v1`) sebagai cache offline. SSL/HTTPS aktif otomatis di Vercel.
 
 ---
 

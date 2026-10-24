@@ -1,0 +1,8 @@
+{
+  "name": "online-shop-ai-firman",
+  "private": true,
+  "description": "Aura Atelier — AI Fit Fashion (SPA + serverless API + Vercel Blob DB)",
+  "dependencies": {
+    "@vercel/blob": "^1.4.0"
+  }
+}

@@ -29,9 +29,72 @@
     address: 'aura.address.v1',
     orders: 'aura.orders.v1',
     reviews: 'aura.reviews.v1',
+    token: 'aura.token.v1',
   };
   const load = (k, fallback) => { try { return JSON.parse(localStorage.getItem(k)) ?? fallback; } catch { return fallback; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } };
+
+  /* -------------------------------------------------- lapisan cloud (API + DB)
+   * Serverless API di Vercel dengan database Vercel Blob.
+   * Mode hybrid: cloud dipakai bila tersedia; gagal/offline → fallback localStorage. */
+  const API_BASE = /^localhost|127\.0\.0\.1$/.test(location.hostname)
+    ? 'https://online-shop-ai-firman.vercel.app/api'
+    : '/api';
+  const Cloud = {
+    ready: null,
+    token: load('aura.token.v1', null),
+    async ping(force = false) {
+      if (this.ready !== null && !force) return this.ready;
+      try {
+        const r = await fetch(API_BASE + '/health');
+        const j = await r.json();
+        this.ready = !!j.ok;
+      } catch { this.ready = false; }
+      return this.ready;
+    },
+    setToken(t) { this.token = t; save('aura.token.v1', t); },
+    clearToken() { this.token = null; save('aura.token.v1', null); },
+    async call(path, { method = 'GET', body } = {}) {
+      const r = await fetch(API_BASE + path, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+          ...(this.token ? { authorization: 'Bearer ' + this.token } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    },
+  };
+
+  /** Tarik data pengguna dari DB (pesanan + profil) lalu gabungkan dengan lokal. */
+  async function syncPull(email) {
+    if (!Cloud.token || !email) return;
+    try {
+      const { orders } = await Cloud.call('/orders?email=' + encodeURIComponent(email));
+      const ids = new Set(state.orders.map((o) => o.id));
+      let added = false;
+      (orders || []).forEach((o) => { if (o && o.id && !ids.has(o.id)) { state.orders.push(o); added = true; } });
+      if (added) {
+        state.orders.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+        save(STORE.orders, state.orders);
+        if (state.route === 'akun') renderAkun();
+        if (state.route === 'pesanan') renderPesanan(state.param);
+      }
+    } catch { /* offline — pakai lokal */ }
+    try {
+      const { profile } = await Cloud.call('/profile?email=' + encodeURIComponent(email));
+      if (profile && !state.profile) {
+        state.profile = profile;
+        save(STORE.profile, profile);
+        applyResultForCurrent();
+        writeFormFromProfile(profile);
+        if (state.route === 'shop') renderCatalog();
+      }
+    } catch { /* offline */ }
+  }
 
   /* Ongkir dihitung otomatis per zona provinsi (demo: 3 zona) */
   const SHIP_ZONES = {
@@ -120,6 +183,7 @@
     mirrorSku: null,
     mirrorSize: null,
     mirror: { on: false, stream: null, raf: 0, landmarker: null, lm: null, lastT: -1, tracking: false },
+    remoteReviews: {},
     viewers: 18 + Math.floor(Math.random() * 14),
   };
 
@@ -273,7 +337,18 @@
   /* -------------------------------------------------- ULASAN */
   function getReviews(sku) {
     const p = prod(sku);
-    return (p.reviews || []).concat(state.userReviews[sku] || []);
+    return (p.reviews || []).concat(state.remoteReviews[sku] || [], state.userReviews[sku] || []);
+  }
+
+  /** Ambil ulasan pengguna dari DB sekali per SKU, lalu render ulang bila masih relevan. */
+  function fetchRemoteReviews(sku) {
+    if (state.remoteReviews[sku]) return;
+    Cloud.call('/reviews?sku=' + encodeURIComponent(sku))
+      .then(({ reviews }) => {
+        state.remoteReviews[sku] = reviews || [];
+        if (state.route === 'produk' && state.currentSku === sku) renderPdp(sku);
+      })
+      .catch(() => { state.remoteReviews[sku] = []; });
   }
 
   function reviewsBlock(p) {
@@ -386,6 +461,7 @@
       </div>
 
       <div class="pdp-info" style="padding-top:0">${reviewsBlock(p)}</div>
+      ${'' /* ulasan dari DB dimuat async lalu dirender ulang */}
 
       ${related.length ? `
       <div class="pdp-info">
@@ -404,6 +480,7 @@
     renderAtelierCard();
     updatePdpCta();
     $('#pdp-save').setAttribute('aria-pressed', state.saved.includes(p.sku_id) ? 'true' : 'false');
+    fetchRemoteReviews(p.sku_id);
   }
 
   function renderSizesPdp() {
@@ -561,6 +638,11 @@
     save(STORE.profile, state.profile);
     state.results = {};
     applyResultForCurrent();
+
+    // sinkronkan profil fit ke database (skema user_body_profiles)
+    if (Cloud.token && state.auth) {
+      Cloud.call('/profile', { method: 'PUT', body: { profile: state.profile } }).catch(() => {});
+    }
   }
 
   function applyResultForCurrent() {
@@ -979,7 +1061,7 @@
     el.hidden = false;
   }
 
-  function handleAuthSubmit(e) {
+  async function handleAuthSubmit(e) {
     e.preventDefault();
     const email = $('#a-email').value.trim().toLowerCase();
     const pass = $('#a-pass').value;
@@ -988,9 +1070,37 @@
     if (!/^\S+@\S+\.\S+$/.test(email)) return authError('Format email tidak valid.');
     if (pass.length < 6) return authError('Kata sandi minimal 6 karakter.');
 
+    const name = $('#a-name').value.trim();
+    const phone = $('#a-phone').value.trim();
+    const btn = $('#auth-submit');
+    btn.disabled = true;
+
+    // 1) Cloud-first: akun & sandi tersimpan di database (terhash scrypt)
+    if (await Cloud.ping()) {
+      try {
+        const res = await Cloud.call('/auth', {
+          method: 'POST',
+          body: { action: state.authMode, email, pass, name, phone },
+        });
+        Cloud.setToken(res.token);
+        // mirror ke lokal untuk mode offline
+        if (!users.some((u) => u.email === email)) {
+          users.push({ name: res.user.name, email, phone: res.user.phone, pass });
+          save(STORE.users, users);
+        }
+        btn.disabled = false;
+        loginAs(res.user);
+        syncPull(email);
+        toast('Tersambung ke database — data Anda tersinkron di semua perangkat.');
+        return;
+      } catch (err) {
+        toast('Server: ' + err.message + ' — melanjutkan mode offline.');
+      }
+    }
+
+    // 2) Fallback lokal
+    btn.disabled = false;
     if (state.authMode === 'register') {
-      const name = $('#a-name').value.trim();
-      const phone = $('#a-phone').value.trim();
       if (name.length < 3) return authError('Nama lengkap minimal 3 karakter.');
       if (phone.replace(/\D/g, '').length < 9) return authError('No. HP tidak valid (min. 9 digit).');
       if (users.some((u) => u.email === email)) return authError('Email sudah terdaftar — gunakan tab Masuk.');
@@ -1023,6 +1133,7 @@
   function logout() {
     state.auth = null;
     state.authMode = 'login';
+    Cloud.clearToken();
     save(STORE.auth, null);
     toast('Anda keluar. Profil & keranjang tetap tersimpan di perangkat ini.');
     goto('login');
@@ -1352,6 +1463,11 @@
     });
     save(STORE.orders, state.orders);
 
+    // simpan ke database (bila online) — tanpa memblokir UI
+    if (Cloud.token) {
+      Cloud.call('/orders', { method: 'POST', body: { order: state.orders[0] } }).catch(() => {});
+    }
+
     state.cart = [];
     state.voucher = null;
     state.voucherError = '';
@@ -1611,6 +1727,22 @@
     closeSheet();
     toast('Terima kasih! Ulasan Anda tampil di halaman produk.');
     if (state.route === 'produk' && state.currentSku === d.sku) renderPdp(d.sku);
+
+    // kirim ke database agar tampil bagi semua pembeli
+    if (Cloud.token) {
+      Cloud.call('/reviews', {
+        method: 'POST',
+        body: {
+          sku: d.sku,
+          review: {
+            name, rating: d.rating, text,
+            size: r?.best.size_label || state.selectedSize || '—',
+          },
+        },
+      })
+        .then(({ reviews }) => { state.remoteReviews[d.sku] = reviews || []; })
+        .catch(() => {});
+    }
   }
 
   /* -------------------------------------------------- AKUN */
@@ -1997,6 +2129,10 @@
   bind();
   renderBadges();
   applyRoute();
+
+  // sinkronisasi awal dengan database (bila tersedia & punya sesi)
+  Cloud.ping();
+  if (state.auth && Cloud.token) syncPull(state.auth.email);
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline-first opsional */ });
