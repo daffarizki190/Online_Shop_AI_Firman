@@ -1,0 +1,15 @@
+# Log & runtime lokal
+server.log
+*.log
+
+# Dependensi
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ZCode sesi lokal
+.zcode/

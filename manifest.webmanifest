@@ -1,0 +1,16 @@
+{
+  "name": "Aura Atelier — AI Fit Fashion",
+  "short_name": "Aura",
+  "description": "E-commerce fashion dengan AI Size Recommendation: konsultasi ukuran 30 detik, hasil fitting presisi, checkout terverifikasi.",
+  "lang": "id",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF9F6",
+  "theme_color": "#FAF9F6",
+  "icons": [
+    { "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/assets/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

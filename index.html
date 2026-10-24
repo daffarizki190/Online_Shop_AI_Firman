@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Aura Atelier — AI Fit Fashion</title>
+  <meta name="description" content="Aplikasi e-commerce fashion Aura Atelier dengan AI Size Recommendation: katalog multi-produk, konsultasi ukuran 30 detik, hasil fitting presisi, ulasan pembeli, dan checkout terverifikasi.">
+  <meta name="theme-color" content="#FAF9F6">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <noscript><p style="padding:24px;font-family:sans-serif">Aktifkan JavaScript untuk menjalankan aplikasi Aura Atelier.</p></noscript>
+
+  <div class="app-frame" id="app-frame">
+
+    <!-- Status bar dekoratif (hanya tampil di pratinjau desktop) -->
+    <div class="statusbar" aria-hidden="true">
+      <span class="statusbar__time">9:41</span>
+      <span class="statusbar__icons"><i></i><i></i><i></i><b></b></span>
+    </div>
+
+    <main class="screens">
+
+      <!-- ============ LAYAR: LOGIN (Gerbang) ============ -->
+      <section class="screen screen--gate" id="screen-login" data-tab="none" aria-label="Masuk atau daftar">
+        <div class="screen__body login__body">
+          <div class="login__brand">
+            <span class="brand">AURA ATELIER</span>
+            <h1 class="serif-title" id="login-title">Selamat datang kembali.</h1>
+            <p class="muted-sm" id="login-sub">Masuk untuk melanjutkan ke koleksi, profil fit, dan pesanan Anda.</p>
+          </div>
+
+          <div class="segmented--auth" role="tablist" aria-label="Mode autentikasi">
+            <button type="button" id="auth-tab-login" class="is-active" role="tab" aria-selected="true">Masuk</button>
+            <button type="button" id="auth-tab-reg" role="tab" aria-selected="false">Daftar</button>
+          </div>
+
+          <form id="auth-form" novalidate>
+            <div class="ff" id="wrap-name" hidden>
+              <label for="a-name">Nama Lengkap</label>
+              <div class="field__control"><input type="text" id="a-name" autocomplete="name" placeholder="cth. Firman Ramadhan"></div>
+            </div>
+            <div class="ff">
+              <label for="a-email">Email</label>
+              <div class="field__control"><input type="email" id="a-email" autocomplete="email" placeholder="nama@email.com"></div>
+            </div>
+            <div class="ff" id="wrap-phone" hidden>
+              <label for="a-phone">No. HP</label>
+              <div class="field__control"><input type="tel" id="a-phone" autocomplete="tel" placeholder="08xx xxxx xxxx"></div>
+            </div>
+            <div class="ff">
+              <label for="a-pass">Kata Sandi</label>
+              <div class="field__control"><input type="password" id="a-pass" autocomplete="current-password" placeholder="Min. 6 karakter"></div>
+            </div>
+            <p class="auth-error" id="auth-error" role="alert" hidden></p>
+            <button type="submit" class="btn btn--dark btn--block" id="auth-submit">Masuk</button>
+          </form>
+
+          <div class="login__foot">
+            <button type="button" class="link-btn" id="auth-demo">Isi akun demo (demo@aura.id)</button>
+            <p class="fineprint">Simulasi autentikasi lokal — data tidak dikirim ke server mana pun.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: SHOP (Katalog + Pencarian) ============ -->
+      <section class="screen is-active" id="screen-shop" data-tab="shop" aria-label="Katalog">
+        <header class="appbar">
+          <div class="brand-wrap">
+            <img src="assets/icon.svg" alt="" class="brand-logo">
+            <span class="brand">AURA ATELIER</span>
+          </div>
+          <div class="appbar__actions">
+            <button type="button" class="icon-btn" data-goto="bantuan" aria-label="Bantuan">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1.9-1.1 1.8"/><circle cx="12" cy="16.6" r="0.5"/></svg>
+            </button>
+            <button type="button" class="icon-btn" data-goto="saved" aria-label="Item tersimpan">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.3-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.3 11c-2.3 4.4-9.3 9-9.3 9z"/></svg>
+              <span class="badge" id="saved-badge" hidden>0</span>
+            </button>
+            <button type="button" class="icon-btn" data-goto="bag" aria-label="Tas belanja">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1.2 12H7.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+              <span class="badge" id="bag-badge" hidden>0</span>
+            </button>
+            <button type="button" class="avatar-btn" data-goto="akun" aria-label="Akun saya"><span id="avatar-init">–</span></button>
+          </div>
+        </header>
+
+        <div class="search-zone">
+          <div class="searchbar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="search-input" type="search" placeholder="Cari produk atau kategori…" autocomplete="off" aria-label="Cari produk">
+            <button type="button" id="search-clear" class="icon-btn icon-btn--sm" hidden aria-label="Hapus pencarian">✕</button>
+          </div>
+          <div class="autocomplete" id="autocomplete" hidden></div>
+        </div>
+
+        <div class="chip-row" id="category-chips" role="tablist" aria-label="Kategori"></div>
+
+        <div class="sort-row">
+          <span class="mono-muted" id="catalog-count"></span>
+          <select id="sort-select" class="control control--sm" aria-label="Urutkan katalog">
+            <option value="pop">Terlaris</option>
+            <option value="asc">Harga terendah</option>
+            <option value="desc">Harga tertinggi</option>
+            <option value="rating">Rating tertinggi</option>
+          </select>
+        </div>
+
+        <div class="screen__body">
+          <div class="empty-state" id="catalog-empty" hidden>
+            <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+            <p class="serif-sm">Tidak ada produk yang cocok</p>
+            <p class="muted-sm">Coba kata kunci lain atau ganti kategori.</p>
+            <button type="button" class="btn btn--outline btn--sm" id="catalog-reset">Reset Pencarian</button>
+          </div>
+          <div class="catalog-grid" id="catalog-grid"></div>
+          <p class="fineprint" style="text-align:center;padding:14px 0 20px">Semua transaksi terenkripsi (HTTPS/TLS) · Garansi keaslian 100%</p>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: PRODUK (PDP per SKU) ============ -->
+      <section class="screen screen--sub" id="screen-produk" data-tab="shop" aria-label="Detail produk">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="shop" aria-label="Kembali ke katalog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong id="produk-title">Produk</strong><span class="mono" id="produk-cat"></span></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="produk-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="icon-btn icon-btn--square" id="pdp-save" aria-label="Simpan produk" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.3-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.3 11c-2.3 4.4-9.3 9-9.3 9z"/></svg>
+          </button>
+          <button type="button" class="btn btn--dark btn--block" id="pdp-add">Pilih Ukuran Dulu</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: STUDIO (Konsultasi) ============ -->
+      <section class="screen" id="screen-studio" data-tab="studio" aria-label="Konsultasi ukuran">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="shop" aria-label="Kembali ke toko">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles">
+            <strong>Atelier Consultation</strong>
+            <span class="mono" id="studio-step-label">01 / 02</span>
+          </div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="progress" role="progressbar" aria-label="Progres konsultasi" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" id="studio-progress"><span id="studio-progress-fill"></span></div>
+
+        <div class="screen__body">
+          <div class="studio-step" data-step="1">
+            <h2 class="serif-title">Detail Tubuh Anda</h2>
+            <p class="muted-sm">Masukkan data berikut untuk analisis presisi. Hanya dipakai menghitung pola potongan — tidak dibagikan.</p>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="f-height">Tinggi Badan</label>
+                <div class="field__control"><input type="number" id="f-height" value="172" min="100" max="230" inputmode="numeric" autocomplete="off"><span class="unit">cm</span></div>
+              </div>
+              <div class="field">
+                <label for="f-weight">Berat Badan</label>
+                <div class="field__control"><input type="number" id="f-weight" value="68" min="30" max="200" inputmode="numeric" autocomplete="off"><span class="unit">kg</span></div>
+              </div>
+              <div class="field">
+                <label for="f-age">Usia</label>
+                <div class="field__control"><input type="number" id="f-age" value="27" min="10" max="99" inputmode="numeric" autocomplete="off"><span class="unit">th</span></div>
+              </div>
+            </div>
+
+            <p class="label-xs">Jenis Kelamin</p>
+            <div class="segmented" role="radiogroup" aria-label="Jenis kelamin">
+              <label><input type="radio" name="gender" value="male" checked><span>Laki-laki</span></label>
+              <label><input type="radio" name="gender" value="female"><span>Perempuan</span></label>
+            </div>
+            <p class="bmi-hint mono" id="bmi-hint" aria-live="polite"></p>
+          </div>
+
+          <div class="studio-step" data-step="2" hidden>
+            <h2 class="serif-title">Preferensi &amp; Postur</h2>
+            <p class="muted-sm">Dua data terakhir untuk mengkalibrasi jatuh potongan boxy.</p>
+
+            <p class="label-xs">Preferensi Fit</p>
+            <div class="choice-row" role="radiogroup" aria-label="Preferensi potongan">
+              <label class="choice"><input type="radio" name="fit" value="tight"><span>Terpotong</span></label>
+              <label class="choice"><input type="radio" name="fit" value="regular" checked><span>Reguler</span></label>
+              <label class="choice"><input type="radio" name="fit" value="oversized"><span>Longgar</span></label>
+            </div>
+
+            <p class="label-xs">Bentuk Tubuh</p>
+            <div class="shape-grid" role="radiogroup" aria-label="Bentuk postur tubuh" id="shape-grid"></div>
+            <p class="fineprint" id="shape-desc"></p>
+          </div>
+        </div>
+
+        <div class="screen__cta screen__cta--split">
+          <button type="button" class="btn btn--ghost" id="studio-back" hidden>Kembali</button>
+          <button type="button" class="btn btn--dark btn--block" id="studio-next">Lanjut →</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: FITTING (Hasil) ============ -->
+      <section class="screen screen--sub" id="screen-fitting" data-tab="studio" aria-label="Hasil fitting">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="studio" aria-label="Kembali ke konsultasi">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong>Atelier Fitting</strong><span class="mono" id="fitting-prod-label"></span></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="fitting-body" aria-live="polite"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="fitting-cta" disabled>Lengkapi Konsultasi Dulu</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: SAVED ============ -->
+      <section class="screen" id="screen-saved" data-tab="saved" aria-label="Item tersimpan">
+        <header class="appbar"><span class="brand brand--sm">SAVED</span></header>
+        <div class="screen__body" id="saved-body"></div>
+      </section>
+
+      <!-- ============ LAYAR: BAG (Langkah 1) ============ -->
+      <section class="screen" id="screen-bag" data-tab="bag" aria-label="Tas belanja">
+        <header class="appbar">
+          <span class="brand brand--sm">ATLELIER BAG</span>
+          <span class="mono-muted" id="bag-count-label">0 item</span>
+        </header>
+        <div class="steps-row">
+          <ol class="stepper">
+            <li class="is-active"><span class="stepper__num">1</span><span class="stepper__lbl">Informasi</span></li>
+            <li><span class="stepper__num">2</span><span class="stepper__lbl">Pengiriman</span></li>
+            <li><span class="stepper__num">3</span><span class="stepper__lbl">Pembayaran</span></li>
+          </ol>
+        </div>
+        <div class="screen__body" id="bag-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="bag-cta" disabled>Tas Masih Kosong</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: PENGIRIMAN (Langkah 2) ============ -->
+      <section class="screen screen--sub" id="screen-pengiriman" data-tab="bag" aria-label="Pengiriman">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="bag" aria-label="Kembali ke tas">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles">
+            <strong>Pengiriman</strong>
+            <span class="mono">Langkah 2 dari 3</span>
+          </div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="steps-row">
+          <ol class="stepper">
+            <li class="is-done"><span class="stepper__num">✓</span><span class="stepper__lbl">Informasi</span></li>
+            <li class="is-active"><span class="stepper__num">2</span><span class="stepper__lbl">Pengiriman</span></li>
+            <li><span class="stepper__num">3</span><span class="stepper__lbl">Pembayaran</span></li>
+          </ol>
+        </div>
+        <div class="screen__body" id="pengiriman-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="pengiriman-cta">Lanjut ke Pembayaran →</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: PEMBAYARAN (Langkah 3) ============ -->
+      <section class="screen screen--sub" id="screen-pembayaran" data-tab="bag" aria-label="Pembayaran">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="pengiriman" aria-label="Kembali ke pengiriman">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles">
+            <strong>Pembayaran</strong>
+            <span class="mono">Langkah 3 dari 3</span>
+          </div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="steps-row">
+          <ol class="stepper">
+            <li class="is-done"><span class="stepper__num">✓</span><span class="stepper__lbl">Informasi</span></li>
+            <li class="is-done"><span class="stepper__num">✓</span><span class="stepper__lbl">Pengiriman</span></li>
+            <li class="is-active"><span class="stepper__num">3</span><span class="stepper__lbl">Pembayaran</span></li>
+          </ol>
+        </div>
+        <div class="screen__body" id="pembayaran-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="pembayaran-cta" disabled>Bayar</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: ALAMAT (Form) ============ -->
+      <section class="screen screen--sub" id="screen-alamat" data-tab="bag" aria-label="Alamat pengiriman">
+        <header class="subbar">
+          <button type="button" class="icon-btn" id="alamat-back" data-goto="pengiriman" aria-label="Kembali">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong>Alamat Pengiriman</strong></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="alamat-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--dark btn--block" id="alamat-save">Simpan Alamat</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: PESANAN (Pelacakan) ============ -->
+      <section class="screen screen--sub" id="screen-pesanan" data-tab="bag" aria-label="Pelacakan pesanan">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="akun" aria-label="Kembali ke akun">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong id="pesanan-title">Pesanan</strong><span class="mono">Pelacakan Pengiriman</span></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="pesanan-body"></div>
+        <div class="screen__cta">
+          <button type="button" class="btn btn--outline btn--block" id="pesanan-cta">Belanja Lagi</button>
+        </div>
+      </section>
+
+      <!-- ============ LAYAR: BANTUAN & TOKO ============ -->
+      <section class="screen" id="screen-bantuan" data-tab="none" aria-label="Bantuan dan profil toko">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="shop" aria-label="Kembali ke katalog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong>Bantuan &amp; Tentang Toko</strong></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="bantuan-body"></div>
+      </section>
+
+      <!-- ============ LAYAR: AKUN ============ -->
+      <section class="screen" id="screen-akun" data-tab="none" aria-label="Akun saya">
+        <header class="subbar">
+          <button type="button" class="icon-btn" data-goto="shop" aria-label="Kembali ke toko">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="subbar__titles"><strong>Akun Saya</strong></div>
+          <span class="subbar__spacer" aria-hidden="true"></span>
+        </header>
+        <div class="screen__body" id="akun-body"></div>
+      </section>
+    </main>
+
+    <!-- ============ Tab bar ============ -->
+    <nav class="tabbar" role="navigation" aria-label="Navigasi utama">
+      <button type="button" class="tab is-active" data-tab="shop">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
+        <span>Shop</span>
+      </button>
+      <button type="button" class="tab" data-tab="studio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="9" width="19" height="7" rx="2"/><path d="M7 9v3.5M11.5 9v3.5M16 9v3.5"/></svg>
+        <span>Studio</span>
+      </button>
+      <button type="button" class="tab" data-tab="saved">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20s-7-4.6-9.3-9A5.4 5.4 0 0 1 12 6.3 5.4 5.4 0 0 1 21.3 11c-2.3 4.4-9.3 9-9.3 9z"/></svg>
+        <span>Saved</span>
+      </button>
+      <button type="button" class="tab" data-tab="bag">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1.2 12H7.2z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>
+        <span>Bag</span>
+        <span class="badge" id="tab-bag-badge" hidden>0</span>
+      </button>
+    </nav>
+
+    <!-- ============ Zoom foto produk ============ -->
+    <div class="zoom-overlay" id="zoom-overlay" hidden>
+      <button type="button" class="icon-btn zoom-close" id="zoom-close" aria-label="Tutup zoom">✕</button>
+      <div class="zoom-stage" id="zoom-stage"><img id="zoom-img" src="" alt="Perbesaran foto produk"></div>
+      <p class="zoom-hint">Ketuk dua kali untuk memperbesar · geser untuk menjelajah detail</p>
+    </div>
+
+    <!-- ============ Live chat ============ -->
+    <div class="chat-overlay" id="chat-overlay" hidden role="dialog" aria-label="Live chat bantuan">
+      <header class="chat-head">
+        <span class="chat-dot" aria-hidden="true"></span>
+        <div class="chat-head__titles"><strong>Bantuan Aura</strong><small>Online · rata-rata balas &lt; 2 menit</small></div>
+        <button type="button" class="icon-btn" id="chat-close" aria-label="Tutup chat">✕</button>
+      </header>
+      <div class="chat-list" id="chat-list" aria-live="polite"></div>
+      <form class="chat-form" id="chat-form">
+        <input id="chat-input" class="control" placeholder="Tulis pertanyaan Anda…" autocomplete="off" aria-label="Pesan">
+        <button type="submit" class="btn btn--dark btn--sm">Kirim</button>
+      </form>
+    </div>
+
+    <!-- ============ Bottom sheets ============ -->
+    <div class="sheet-overlay" id="sheet-overlay" hidden>
+      <div class="bottom-sheet" id="sheet-size-chart" role="dialog" aria-modal="true" aria-labelledby="size-chart-title" hidden>
+        <div class="bottom-sheet__grip" aria-hidden="true"></div>
+        <div class="row-between">
+          <h4 id="size-chart-title">Size Chart Matrix (cm)</h4>
+          <button type="button" class="icon-btn icon-btn--sm" data-close-sheet aria-label="Tutup">✕</button>
+        </div>
+        <table class="chart-table">
+          <thead><tr><th>Size</th><th>L. Dada</th><th>Panjang</th><th>Bahu</th><th>Lengan</th></tr></thead>
+          <tbody id="size-chart-body"></tbody>
+        </table>
+        <p class="fineprint">Diukur flat-lay sebelum pencucian. Susut kain sudah diperhitungkan oleh AI.</p>
+      </div>
+
+      <div class="bottom-sheet" id="sheet-qris" role="dialog" aria-modal="true" aria-labelledby="qris-title" hidden>
+        <div class="bottom-sheet__grip" aria-hidden="true"></div>
+        <h4 id="qris-title">Pindai QRIS untuk Bayar</h4>
+        <p class="mono-muted" id="qris-total"></p>
+        <div class="qr-mount" id="qr-mount" role="img" aria-label="Kode QR pembayaran"></div>
+        <p class="fineprint" id="qris-note">Buka aplikasi e-wallet / m-banking → Scan QRIS. Simulasi: otomatis terbayar ±3 detik.</p>
+      </div>
+
+      <div class="bottom-sheet" id="sheet-review" role="dialog" aria-modal="true" aria-labelledby="review-title" hidden>
+        <div class="bottom-sheet__grip" aria-hidden="true"></div>
+        <h4 id="review-title">Tulis Ulasan</h4>
+        <p class="mono-muted" id="review-product"></p>
+        <p class="label-xs" style="margin-top:12px">Rating Anda</p>
+        <div class="review-stars" id="review-stars" role="radiogroup" aria-label="Pilih rating"></div>
+        <p class="label-xs">Ulasan</p>
+        <textarea class="control" id="review-text" placeholder="Bagaimana kualitas, ukuran, dan pengirimannya?"></textarea>
+        <p class="label-xs" style="margin-top:10px">Nama <span style="font-weight:400;color:var(--muted)">(opsional)</span></p>
+        <input type="text" class="control" id="review-name" placeholder="Nama Anda">
+        <button type="button" class="btn btn--dark btn--block" id="review-submit" style="margin-top:14px">Kirim Ulasan</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/size-engine.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
