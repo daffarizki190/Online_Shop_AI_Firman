@@ -1,5 +1,7 @@
 # Aura Atelier — AI Fit Architecture & Fashion E-Commerce
 
+🔗 **Live:** [online-shop-ai-firman.vercel.app](https://online-shop-ai-firman.vercel.app) · **Repo:** [github.com/daffarizki190/Online_Shop_AI_Firman](https://github.com/daffarizki190/Online_Shop_AI_Firman) — setiap push ke `main` otomatis deploy via Vercel.
+
 Aplikasi e-commerce fashion berbasis **AI Size Recommendation** untuk menekan *Return Rate* akibat *sizing uncertainty* hingga **< 10%** dan meningkatkan *Checkout Conversion Rate* (**+25%**).
 
 Repo ini berisi **dua artefak**:

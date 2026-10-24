@@ -13,3 +13,6 @@ Thumbs.db
 
 # ZCode sesi lokal
 .zcode/
+
+.vercel
+.env*
