@@ -13,6 +13,15 @@ Repo ini berisi **dua artefak**:
 
 ---
 
+## 🧪 QC Menyeluruh
+
+```bash
+npm run qc                          # uji 98 titik terhadap situs live
+npm run qc -- http://localhost:4173 # uji terhadap server lokal
+```
+
+Suite di `qc/run-qc.mjs` mencakup: aset statis (21 file), struktur HTML 14 layar, fungsi kode & router, API database (health/auth/orders/reviews/profile), keamanan (token palsu, 401/409/400, isolasi antar-akun, sandi tidak bocor), CORS, ukuran/waktu respons, dan aksesibilitas dasar. Laporan terakhir: [`qc/LAPORAN-QC.md`](qc/LAPORAN-QC.md) — **98/98 lulus**.
+
 ## 🚀 Menjalankan Aplikasi
 
 ```bash
