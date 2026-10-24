@@ -843,3 +843,16 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .hud-chip--ok { background: rgba(47, 107, 79, 0.9); }
 .hud-chip--warn { background: rgba(184, 74, 40, 0.92); }
 #mirror-fallback { padding: 40px 24px; }
+
+/* ---- CTA "Coba Dulu" menonjol di setiap PDP ---- */
+.mirror-cta {
+  width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+  border: 1px solid var(--ink); border-radius: var(--radius);
+  background: var(--surface-2); padding: 13px 14px; margin: 2px 0 16px;
+}
+.mirror-cta:active { background: var(--surface-3); }
+.mirror-cta__icon { flex: none; width: 40px; height: 40px; border-radius: 10px; background: var(--ink); display: flex; align-items: center; justify-content: center; font-size: 19px; }
+.mirror-cta__text { flex: 1; min-width: 0; }
+.mirror-cta__text strong { display: block; font-size: 13.5px; }
+.mirror-cta__text small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.mirror-cta__chev { flex: none; color: var(--accent); font-size: 20px; line-height: 1; }

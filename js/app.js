@@ -421,6 +421,12 @@
           <button type="button" class="link-btn" data-scroll-reviews>Lihat ulasan</button>
         </div>
 
+        <button type="button" class="mirror-cta" data-mirror data-mirror-sku="${p.sku_id}">
+          <span class="mirror-cta__icon" aria-hidden="true">🪞</span>
+          <span class="mirror-cta__text"><strong>Coba Dulu — Cermin AI</strong><small>Kamera jadi cermin · AI menyesuaikan pakaian ke badan &amp; ukuran Anda</small></span>
+          <span class="mirror-cta__chev" aria-hidden="true">›</span>
+        </button>
+
         <div class="row-between">
           <span class="label-sm">Pilih Ukuran</span>
           <button type="button" class="link-btn" id="open-size-chart">Panduan (cm)</button>
@@ -535,9 +541,6 @@
       <div class="atelier-card__row">
         <button type="button" class="link-btn" data-goto="studio">Ubah profil</button>
         <button type="button" class="link-btn" data-goto="fitting">Lihat detail fit →</button>
-      </div>
-      <div class="atelier-card__row">
-        <button type="button" class="link-btn" data-mirror data-mirror-sku="${p.sku_id}">🪞 Coba Cermin AI</button>
       </div>`;
   }
 
@@ -980,6 +983,12 @@
         if (diff >= -2.5 && diff <= 3.5) { hudFit.textContent = `Size ${state.mirrorSize} ✓ Pas di bahu`; hudFit.classList.add('hud-chip--ok'); }
         else if (diff < -2.5) { hudFit.textContent = `Size ${state.mirrorSize} agak ketat`; hudFit.classList.add('hud-chip--warn'); }
         else { hudFit.textContent = `Size ${state.mirrorSize} agak longgar`; }
+
+        // AI menyarankan ukuran terbaik dari pengukuran bahu live (target kelonggaran +2 cm)
+        const sug = p.sizes
+          .map((sz) => ({ l: sz.size_label, eff: sz.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
+          .sort((a, b) => Math.abs(a.eff - shoulderCm - 2) - Math.abs(b.eff - shoulderCm - 2))[0];
+        if (sug && sug.l !== state.mirrorSize) hudFit.textContent += ` → AI: ${sug.l}`;
       }
     } else {
       hudSh.textContent = 'Bahu: mengunci…';
