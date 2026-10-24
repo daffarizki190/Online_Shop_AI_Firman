@@ -1,5 +1,5 @@
 /* Aura Atelier — service worker sederhana: cache-first untuk app shell */
-const CACHE = 'aura-atelier-v8';
+const CACHE = 'aura-atelier-v9';
 const SHELL = [
   '/',
   '/index.html',
@@ -28,6 +28,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  // API & service worker tidak boleh di-cache (selalu ke server)
+  if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return;
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if (cached) return cached;
