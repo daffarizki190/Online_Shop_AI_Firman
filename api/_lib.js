@@ -29,8 +29,10 @@ export function preflight() {
 
 export async function readJSON(key, fallback) {
   try {
-    const val = await get(key, { type: 'json' });
-    return val ?? fallback;
+    const res = await get(key, { access: 'private', useCache: false });
+    if (!res) return fallback;
+    const txt = await res.blob.text();
+    return JSON.parse(txt);
   } catch {
     return fallback;
   }
