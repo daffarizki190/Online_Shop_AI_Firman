@@ -585,8 +585,7 @@
     const w = Number($('#f-weight').value);
     if (!h || !w) { $('#bmi-hint').textContent = ''; return; }
     const bmi = w / (h * h);
-    const cat = bmi < 18.5 ? 'ramping' : bmi < 25 ? 'proporsional' : bmi < 30 ? 'berisi' : 'besar';
-    $('#bmi-hint').textContent = `IMT ${bmi.toFixed(1)} (${cat}) — dipakai untuk mengestimasi lingkar dada & pinggang.`;
+    $('#bmi-hint').textContent = `IMT ${bmi.toFixed(1)} — membantu AI mengestimasi lingkar dada & pinggang Anda.`;
   }
 
   function updateShapeDesc() {
@@ -869,7 +868,7 @@
     } catch (e) {
       m.landmarker = null;
       m.tracking = false;
-      $('#hud-status').textContent = 'Mode statis (pelacakan tidak tersedia)';
+      $('#hud-status').textContent = 'Cermin manual — AI belum aktif';
     }
 
     m.lastT = -1;
@@ -934,7 +933,7 @@
       shoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
       cx = (sL.x + sR.x) / 2;
       topY = Math.min(sL.y, sR.y) - shoulderPx * 0.22;
-      $('#hud-status').textContent = state.mirror.tracking ? 'Terkunci ✓ (diproses di perangkat)' : 'Mode statis';
+      $('#hud-status').textContent = state.mirror.tracking ? 'Terkunci ✓ — diproses di perangkat Anda' : 'Cermin manual';
     } else {
       shoulderPx = W * 0.26;
       cx = W / 2;
@@ -1101,10 +1100,10 @@
         btn.disabled = false;
         loginAs(res.user);
         syncPull(email);
-        toast('Tersambung ke database — data Anda tersinkron di semua perangkat.');
+        toast('Akun tersinkron ✓ — data Anda ikut di semua perangkat.');
         return;
       } catch (err) {
-        toast('Server: ' + err.message + ' — melanjutkan mode offline.');
+        toast('Koneksi server terputus — melanjutkan dengan data di perangkat ini.');
       }
     }
 
@@ -1602,11 +1601,11 @@
 
     renderPesanan(orderId);
     const msg = {
-      perfect: 'Terima kasih! Data "Pas" memperkuat akurasi AI.',
-      too_small: 'Tercatat "Kekecilan" — tukar ukuran gratis diproses & model dikalibrasi.',
-      too_big: 'Tercatat "Kebesaran" — tukar ukuran gratis diproses & model dikalibrasi.',
+      perfect: 'Terima kasih! Masukan Anda membuat rekomendasi AI makin akurat.',
+      too_small: 'Tercatat — tukar ukuran gratis segera kami proses. Terima kasih!',
+      too_big: 'Tercatat — tukar ukuran gratis segera kami proses. Terima kasih!',
     }[value];
-    toast(`${msg} (${log.length} data loop tersimpan)`);
+    toast(msg);
   }
 
   /* -------------------------------------------------- BANTUAN & TOKO */
@@ -1726,7 +1725,7 @@
   function submitReview() {
     const d = state.reviewDraft;
     const text = $('#review-text').value.trim();
-    const name = $('#review-name').value.trim() || 'Pembeli Aura';
+    const name = $('#review-name').value.trim() || 'Pembeli';
     if (!d.rating) { toast('Pilih rating bintang dulu ya.'); return; }
     if (text.length < 10) { toast('Tulis ulasan minimal 10 karakter.'); return; }
     const r = state.results[d.sku];
@@ -1771,7 +1770,7 @@
         <div>
           <p class="acct-card__name">${esc(u.name)}</p>
           <p class="acct-card__meta">${esc(u.email)} · ${esc(u.phone || '')}</p>
-          ${Cloud.token ? '<span class="cloud-chip">☁ Data tersinkron di semua perangkat</span>' : '<span class="cloud-chip cloud-chip--off">Mode offline — data di perangkat ini</span>'}
+          ${Cloud.token ? '<span class="cloud-chip">☁ Tersinkron di semua perangkat</span>' : '<span class="cloud-chip cloud-chip--off">Data tersimpan di perangkat ini</span>'}
         </div>
       </div>
 
@@ -1806,8 +1805,7 @@
         </button>`;
       }).join('') : '<p class="muted-sm" style="padding:8px 2px 16px">Belum ada pesanan — riwayat muncul setelah pembayaran.</p>'}
 
-      <button type="button" class="btn btn--danger btn--block" id="btn-logout" style="margin-top:18px">Keluar</button>
-      <p style="text-align:center;margin-top:14px"><a class="link-btn" href="spec.html">Dokumentasi &amp; Spec Deck ↗</a></p>`;
+      <button type="button" class="btn btn--danger btn--block" id="btn-logout" style="margin-top:18px">Keluar</button>`;
   }
 
   /* -------------------------------------------------- KERANJANG */

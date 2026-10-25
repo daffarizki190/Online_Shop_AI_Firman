@@ -1,6 +1,7 @@
 /**
- * GET  /api/reviews?sku=...            → { ok, reviews }  (publik)
- * POST /api/reviews { sku, review }    (Bearer token) → { ok, reviews }
+ * GET    /api/reviews?sku=...                       → { ok, reviews }  (publik)
+ * POST   /api/reviews { sku, review }               (Bearer token) → { ok, reviews }
+ * DELETE /api/reviews { sku, at }                   (Bearer token) → hapus ulasan milik sendiri
  */
 import { json, preflight, readJSON, writeJSON, verifyToken } from './_lib.js';
 
@@ -31,7 +32,7 @@ export async function POST(req) {
   const key = 'reviews:' + sku;
   const list = await readJSON(key, []);
   list.push({
-    name: String(r.name || 'Pembeli Aura').slice(0, 40),
+    name: String(r.name || 'Pembeli').slice(0, 40),
     rating,
     text: text.slice(0, 500),
     size: String(r.size || '—').slice(0, 8),
@@ -40,4 +41,23 @@ export async function POST(req) {
   });
   await writeJSON(key, list.slice(-200));
   return json({ ok: true, reviews: list });
+}
+
+/** Hapus ulasan milik sendiri (identifikasi via sku + timestamp unik). */
+export async function DELETE(req) {
+  const email = verifyToken(req);
+  if (!email) return json({ error: 'Tidak terautentikasi' }, 401);
+
+  let body;
+  try { body = await req.json(); } catch { return json({ error: 'Body tidak valid' }, 400); }
+  const sku = String(body.sku || '').slice(0, 64);
+  const at = String(body.at || '');
+  if (!sku || !at) return json({ error: 'sku dan at wajib diisi' }, 400);
+
+  const key = 'reviews:' + sku;
+  const list = await readJSON(key, []);
+  const next = list.filter((rv) => !(rv.at === at && rv.email === email));
+  if (next.length === list.length) return json({ error: 'Ulasan tidak ditemukan' }, 404);
+  await writeJSON(key, next);
+  return json({ ok: true, reviews: next });
 }
