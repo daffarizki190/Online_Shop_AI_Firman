@@ -888,9 +888,9 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .subbar--admin .icon-btn { color: var(--surface); }
 .admin-pill { flex: none; font: 700 10px var(--font-ui); letter-spacing: 0.1em; color: var(--surface); background: var(--accent); border-radius: 4px; padding: 5px 8px; }
 
-.tabbar--admin { background: var(--ink); border-top: 0; }
-.tabbar--admin .tab { color: rgba(250, 249, 246, 0.55); }
-.tabbar--admin .tab svg { stroke: currentColor; }
+.tabbar--admin { background: var(--ink); border-top: 0; grid-template-columns: repeat(5, 1fr); }
+.tabbar--admin .tab { color: rgba(250, 249, 246, 0.55); font-size: 9.5px; padding: 5px 0 3px; }
+.tabbar--admin .tab svg { width: 19px; height: 19px; stroke: currentColor; }
 .tabbar--admin .tab.is-active { color: var(--surface); }
 .tabbar--admin .tab.is-active::after { background: var(--accent); }
 
