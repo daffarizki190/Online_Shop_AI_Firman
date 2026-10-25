@@ -3,6 +3,14 @@ import { useApp, Cloud, fmtIDR, fmtDate, fmtTime, ORDER_STAGES } from '../store'
 import type { AdminData } from '../store';
 import { SubbarAdmin } from '../ui';
 
+/** Angka ringkas yang menyesuaikan layar: 8.406.000 → "8,4 jt" (angka penuh di tooltip). */
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' M';
+  if (n >= 1_000_000) return (n / 1_000_000).toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jt';
+  if (n >= 10_000) return Math.round(n / 1000) + ' rb';
+  return n.toLocaleString('id-ID');
+}
+
 async function loadAdmin(force: boolean, cache: { at: number; data: AdminData | null }): Promise<AdminData> {
   if (!force && cache.data && Date.now() - cache.at < 15000) return cache.data;
   const data = await Cloud.call<AdminData>('/admin');
@@ -50,7 +58,7 @@ export function AdminDashboard() {
         {data && (<>
           <p className="label-xs">Ringkasan Toko</p>
           <div className="adm-stats">
-            <div className="adm-stat"><b>{fmtIDR(data.stats.revenue).replace('Rp ', '')}</b><small>Pendapatan</small></div>
+            <div className="adm-stat"><b title={fmtIDR(data.stats.revenue)}>{fmtCompact(data.stats.revenue)}</b><small>Pendapatan</small></div>
             <div className="adm-stat"><b>{data.stats.orders}</b><small>Pesanan</small></div>
             <div className="adm-stat"><b>{data.stats.itemsSold}</b><small>Item Terjual</small></div>
             <div className="adm-stat"><b>{data.stats.users}</b><small>Pengguna</small></div>
