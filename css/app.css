@@ -857,6 +857,10 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .mirror-cta__text small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
 .mirror-cta__chev { flex: none; color: var(--accent); font-size: 20px; line-height: 1; }
 
+/* ---- Guard atribut [hidden] vs class ber-display (bug klasik) ---- */
+.empty-state[hidden] { display: none; }
+.icon-btn[hidden] { display: none; }
+
 /* ---- Polish UX: hapus item, stepper klik, chip sinkron, toast ---- */
 .cart-item__remove { display: inline-block; font-size: 11px; margin-top: 6px; padding: 2px 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
 .cart-item__remove:active { color: var(--accent); }
