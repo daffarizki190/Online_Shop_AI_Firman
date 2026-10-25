@@ -62,30 +62,20 @@ s { color: var(--muted); font-weight: 400; }
 .serif-title { font-family: var(--font-serif); font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
 .serif-sm { font-family: var(--font-serif); font-size: 18px; font-weight: 500; }
 
-/* ============ Bingkai ponsel ============ */
+/* ============ Bingkai aplikasi (responsif) ============ */
 .app-frame {
-  width: 400px;
-  height: min(860px, 94vh);
+  width: min(96vw, 640px);
+  height: min(94dvh, 1000px);
   background: var(--surface);
   border: 1px solid #D7D5CF;
-  border-radius: 28px;
+  border-radius: 20px;
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
 }
 
-.statusbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 22px 6px; font: 500 12px var(--font-mono); flex: none;
-}
-.statusbar__icons { display: inline-flex; align-items: flex-end; gap: 3px; }
-.statusbar__icons i { width: 3px; background: var(--ink); border-radius: 1px; }
-.statusbar__icons i:nth-child(1) { height: 4px; }
-.statusbar__icons i:nth-child(2) { height: 6px; }
-.statusbar__icons i:nth-child(3) { height: 8px; }
-.statusbar__icons b { width: 18px; height: 9px; border: 1px solid var(--ink); border-radius: 2.5px; margin-left: 4px; position: relative; }
-.statusbar__icons b::before { content: ''; position: absolute; inset: 1.5px; right: 5px; background: var(--ink); border-radius: 1px; }
+.statusbar { display: none; }
 
 /* ============ Layar & transisi ============ */
 .screens { flex: 1; position: relative; overflow: hidden; }
@@ -512,11 +502,21 @@ s { color: var(--muted); font-weight: 400; }
 }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
-/* ============ Responsif: ponsel asli memenuhi layar ============ */
-@media (max-width: 480px) {
+/* ============ Responsif ============ */
+/* Ponsel: fullscreen tanpa bingkai */
+@media (max-width: 600px) {
   body { display: block; background: var(--surface); }
   .app-frame { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
-  .statusbar { display: none; }
+}
+/* Grid katalog menyesuaikan lebar frame (2 kolom di ponsel, 3+ di lebih lebar) */
+@media (min-width: 520px) {
+  .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+/* Layar sangat sempit: rapatkan appbar */
+@media (max-width: 360px) {
+  .brand { font-size: 10.5px; letter-spacing: 0.1em; }
+  .appbar__actions .icon-btn { width: 32px; }
+  .avatar-btn { width: 30px; height: 30px; }
 }
 
 /* ============================================================
