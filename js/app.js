@@ -136,7 +136,7 @@
   ];
   const FIT_LABEL = { tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' };
   const STATUS_LABEL = { fit: 'Pas', tight: 'Agak Ketat', loose: 'Agak Longgar' };
-  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'cermin', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan', 'admin'];
+  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'cermin', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan', 'admin', 'admin-pesanan', 'admin-ulasan', 'admin-pengguna'];
   const DEMO_USER = { name: 'Demo Aura', email: 'demo@aura.id', phone: '0812 0000 0000', pass: '123456' };
 
   /* Bentuk garmen & warna untuk overlay Cermin AI */
@@ -246,9 +246,9 @@
     if (state.auth && route === 'login') route = 'shop';
 
     if (state.route === 'cermin' && route !== 'cermin') stopMirror();
-    // Panel admin hanya untuk role admin
-    if (route === 'admin' && state.auth?.role !== 'admin') {
-      toast('Panel ini khusus admin.');
+    // Seluruh area admin hanya untuk role admin
+    if (route.startsWith('admin') && state.auth?.role !== 'admin') {
+      toast('Area ini khusus admin.');
       goto('shop');
       return;
     }
@@ -260,6 +260,12 @@
     }
     state.route = route;
     state.param = param;
+
+    // Bar navigasi berbeda per role: admin memakai tab bar adminnya sendiri
+    const isAdminUser = state.auth?.role === 'admin';
+    $('.tabbar:not(.tabbar--admin)').hidden = isAdminUser || route === 'login';
+    $('#admin-tabbar').hidden = !isAdminUser || route === 'login';
+    $$('#admin-tabbar .tab').forEach((tb) => tb.classList.toggle('is-active', tb.dataset.adm === route));
 
     $$('.screen').forEach((scr) => scr.classList.toggle('is-active', scr.id === 'screen-' + route));
     $$('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.tab === $('#screen-' + route)?.dataset.tab));
@@ -282,7 +288,10 @@
     if (route === 'akun') renderAkun();
     if (route === 'pesanan') renderPesanan(param);
     if (route === 'bantuan') renderBantuan();
-    if (route === 'admin') renderAdmin();
+    if (route === 'admin') renderAdminDashboard();
+    if (route === 'admin-pesanan') renderAdminPesanan();
+    if (route === 'admin-ulasan') renderAdminUlasan();
+    if (route === 'admin-pengguna') renderAdminPengguna();
     if (route === 'login') renderLogin();
     renderBadges();
   }
@@ -1144,8 +1153,8 @@
   function loginAs(u) {
     state.auth = { ...u, loginAt: new Date().toISOString() };
     save(STORE.auth, state.auth);
-    toast(`Selamat datang, ${u.name.split(' ')[0]}! Anda masuk sebagai ${u.email}.`);
-    goto('shop');
+    toast(u.role === 'admin' ? 'Selamat datang, Admin! Anda masuk ke Panel Admin.' : `Selamat datang, ${u.name.split(' ')[0]}! Anda masuk sebagai ${u.email}.`);
+    goto(u.role === 'admin' ? 'admin' : 'shop');
   }
 
   function ensureDemoUser() {
@@ -1773,25 +1782,36 @@
     }
   }
 
-  /* -------------------------------------------------- PANEL ADMIN */
+  /* -------------------------------------------------- PANEL ADMIN (4 layar) */
   const ADMIN_STAGES = ['Pesanan Dibuat', 'Pembayaran Terverifikasi', 'Sedang Dikemas', 'Diserahkan ke Kurir', 'Dalam Perjalanan', 'Tiba di Tujuan'];
+  state.adminCache = { at: 0, data: null };
 
-  async function renderAdmin() {
+  async function loadAdminData(force = false) {
+    if (!force && state.adminCache.data && Date.now() - state.adminCache.at < 15000) return state.adminCache.data;
+    const data = await Cloud.call('/admin');
+    state.adminCache = { at: Date.now(), data };
+    return data;
+  }
+
+  function adminLoading(el) {
+    el.innerHTML = '<div class="empty-state" style="padding:32px 24px"><p class="muted-sm">Memuat data toko…</p></div>';
+  }
+
+  function adminError(el, e) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg></div>
+        <p class="serif-sm">Data tidak dapat dimuat</p>
+        <p class="muted-sm">${esc(String(e.message || e))}</p>
+        <button type="button" class="btn btn--outline btn--sm" data-admin-refresh>Coba Lagi</button>
+      </div>`;
+  }
+
+  async function renderAdminDashboard() {
     const body = $('#admin-body');
-    body.innerHTML = '<div class="empty-state" style="padding:32px 24px"><p class="muted-sm">Memuat data toko…</p></div>';
+    adminLoading(body);
     let data;
-    try {
-      data = await Cloud.call('/admin');
-    } catch (e) {
-      body.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg></div>
-          <p class="serif-sm">Data tidak dapat dimuat</p>
-          <p class="muted-sm">${esc(String(e.message || e))}</p>
-          <button type="button" class="btn btn--outline btn--sm" id="admin-retry">Coba Lagi</button>
-        </div>`;
-      return;
-    }
+    try { data = await loadAdminData(true); } catch (e) { return adminError(body, e); }
     const s = data.stats;
     body.innerHTML = `
       <p class="label-xs">Ringkasan Toko</p>
@@ -1804,8 +1824,34 @@
         <div class="adm-stat"><b>${s.avgRating ?? '—'}</b><small>Rata² Rating</small></div>
       </div>
 
-      <p class="label-xs">Pesanan Terbaru — ubah status pengiriman</p>
-      ${data.recentOrders.length ? data.recentOrders.map((o) => `
+      <p class="label-xs">Menu Cepat</p>
+      <div class="adm-nav">
+        <button type="button" data-goto="admin-pesanan"><b>📦</b><span>Kelola Pesanan</span><small>${s.orders} pesanan</small></button>
+        <button type="button" data-goto="admin-ulasan"><b>⭐</b><span>Moderasi Ulasan</span><small>${s.reviews} ulasan</small></button>
+        <button type="button" data-goto="admin-pengguna"><b>👥</b><span>Pengguna</span><small>${s.users} akun</small></button>
+        <button type="button" data-goto="shop"><b>🛍️</b><span>Buka Toko</span><small>mode pembeli</small></button>
+      </div>
+
+      <p class="label-xs">Pesanan Terbaru</p>
+      ${(data.recentOrders || []).slice(0, 3).map((o) => `
+        <div class="adm-order">
+          <div class="adm-order__top">
+            <span class="adm-order__id">${o.id}</span>
+            <span class="status-chip ${o.statusIndex === 5 ? 'status-chip--done' : 'status-chip--progress'}">${ADMIN_STAGES[o.statusIndex] || ''}</span>
+          </div>
+          <p class="adm-order__meta">${esc(o.buyer || '')} · ${fmtDate(o.at)} ${fmtTime(o.at)} · ${fmtIDR(o.totals?.total || 0)}</p>
+        </div>`).join('') || '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada pesanan.</p>'}
+      <p class="fineprint" style="margin-top:10px">Data langsung dari database toko · <button type="button" class="link-btn" data-admin-refresh style="padding:0">Muat ulang</button></p>`;
+  }
+
+  async function renderAdminPesanan() {
+    const body = $('#admin-pesanan-body');
+    adminLoading(body);
+    let data;
+    try { data = await loadAdminData(); } catch (e) { return adminError(body, e); }
+    body.innerHTML = `
+      <p class="label-xs">Semua Pesanan — ubah status pengiriman</p>
+      ${(data.recentOrders || []).map((o) => `
         <div class="adm-order">
           <div class="adm-order__top">
             <span class="adm-order__id">${o.id}</span>
@@ -1815,31 +1861,45 @@
           <select class="control" data-admin-order="${esc(o.buyer || '')}|${esc(o.id)}">
             ${ADMIN_STAGES.map((st, i) => `<option value="${i}" ${o.statusIndex === i ? 'selected' : ''}>${st}</option>`).join('')}
           </select>
-        </div>`).join('') : '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada pesanan.</p>'}
+        </div>`).join('') || '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada pesanan.</p>'}`;
+  }
 
-      <p class="label-xs">Moderasi Ulasan Terbaru</p>
-      ${data.recentReviews.length ? data.recentReviews.map((r) => `
+  async function renderAdminUlasan() {
+    const body = $('#admin-ulasan-body');
+    adminLoading(body);
+    let data;
+    try { data = await loadAdminData(); } catch (e) { return adminError(body, e); }
+    body.innerHTML = `
+      <p class="label-xs">Moderasi Ulasan Pengguna</p>
+      ${(data.recentReviews || []).map((r) => `
         <div class="adm-review">
           <div>
             <p class="adm-review__text">"${esc(r.text || '')}"</p>
             <p class="adm-review__meta">${esc(r.name || 'Pembeli')} · ${'★'.repeat(r.rating || 0)} · ${esc(r.sku || '')} · ${fmtDate(r.at || '')}</p>
           </div>
           <button type="button" class="btn btn--danger btn--sm" data-admin-review="${esc(r.sku || '')}|${esc(r.at || '')}">Hapus</button>
-        </div>`).join('') : '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada ulasan pengguna.</p>'}
+        </div>`).join('') || '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada ulasan pengguna.</p>'}`;
+  }
 
+  async function renderAdminPengguna() {
+    const body = $('#admin-pengguna-body');
+    adminLoading(body);
+    let data;
+    try { data = await loadAdminData(); } catch (e) { return adminError(body, e); }
+    body.innerHTML = `
       <p class="label-xs">Pengguna Terdaftar</p>
-      ${data.users.length ? data.users.map((u) => `
+      ${(data.users || []).map((u) => `
         <div class="adm-user">
           <div><b>${esc(u.name || '')}</b><br><span class="adm-user__email">${esc(u.email || '')}</span></div>
           <span class="mono-muted">${u.createdAt ? fmtDate(u.createdAt) : ''}</span>
-        </div>`).join('') : '<p class="muted-sm">Belum ada pengguna.</p>'}
-      <p class="fineprint" style="margin-top:14px">Panel admin — data langsung dari database toko.</p>`;
+        </div>`).join('') || '<p class="muted-sm">Belum ada pengguna.</p>'}`;
   }
 
   async function adminSetOrder(buyer, id, statusIndex) {
     try {
       await Cloud.call('/admin', { method: 'POST', body: { action: 'order', buyer, id, statusIndex } });
       toast(`Status ${id} → ${ADMIN_STAGES[statusIndex]}.`);
+      state.adminCache.at = 0;
     } catch (e) { toast('Gagal: ' + (e.message || e)); }
   }
 
@@ -1847,7 +1907,8 @@
     try {
       await Cloud.call('/admin', { method: 'POST', body: { action: 'review-del', sku, at } });
       toast('Ulasan dihapus.');
-      renderAdmin();
+      state.adminCache.at = 0;
+      renderAdminUlasan();
     } catch (e) { toast('Gagal: ' + (e.message || e)); }
   }
 
@@ -2016,7 +2077,9 @@
         adminDeleteReview(sku, at);
         return;
       }
-      if (t.id === 'admin-retry') { renderAdmin(); return; }
+      if (t.hasAttribute('data-admin-refresh')) { state.adminCache.at = 0; renderAdminDashboard(); return; }
+      const admTab = e.target.closest('#admin-tabbar .tab[data-adm]');
+      if (admTab) { goto(admTab.dataset.adm); return; }
       if (t.dataset.cat) { state.search.cat = t.dataset.cat; renderCatalog(); return; }
       if (t.dataset.q) {
         state.search.q = t.dataset.q;
@@ -2206,8 +2269,8 @@
       renderCatalog();
     });
 
-    // Admin: ubah status pesanan lewat select
-    $('#admin-body').addEventListener('change', (e) => {
+    // Admin: ubah status pesanan lewat select (bubbles dari semua layar admin)
+    document.addEventListener('change', (e) => {
       const sel = e.target.closest('select[data-admin-order]');
       if (sel) {
         const [buyer, id] = sel.dataset.adminOrder.split('|');

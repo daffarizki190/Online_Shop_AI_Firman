@@ -377,16 +377,44 @@
         <div class="screen__body" id="bantuan-body"></div>
       </section>
 
-      <!-- ============ LAYAR: ADMIN ============ -->
-      <section class="screen screen--sub" id="screen-admin" data-tab="none" aria-label="Panel admin">
-        <header class="subbar">
-          <button type="button" class="icon-btn" data-goto="akun" aria-label="Kembali ke akun">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
-          </button>
-          <div class="subbar__titles"><strong>Panel Admin</strong><span class="mono">Aura Atelier</span></div>
-          <span class="subbar__spacer" aria-hidden="true"></span>
+      <!-- ============ LAYAR: ADMIN (Dashboard) ============ -->
+      <section class="screen screen--sub" id="screen-admin" data-tab="admin" aria-label="Dashboard admin">
+        <header class="subbar subbar--admin">
+          <span class="admin-pill">ADMIN</span>
+          <div class="subbar__titles"><strong>Dashboard Toko</strong><span class="mono">Aura Atelier</span></div>
+          <button type="button" class="icon-btn" data-goto="akun" aria-label="Akun">👤</button>
         </header>
         <div class="screen__body" id="admin-body"></div>
+      </section>
+
+      <!-- ============ LAYAR: ADMIN Pesanan ============ -->
+      <section class="screen screen--sub" id="screen-admin-pesanan" data-tab="admin-pesanan" aria-label="Kelola pesanan">
+        <header class="subbar subbar--admin">
+          <span class="admin-pill">ADMIN</span>
+          <div class="subbar__titles"><strong>Kelola Pesanan</strong><span class="mono">semua pembeli</span></div>
+          <span class="subbar__spacer"></span>
+        </header>
+        <div class="screen__body" id="admin-pesanan-body"></div>
+      </section>
+
+      <!-- ============ LAYAR: ADMIN Ulasan ============ -->
+      <section class="screen screen--sub" id="screen-admin-ulasan" data-tab="admin-ulasan" aria-label="Moderasi ulasan">
+        <header class="subbar subbar--admin">
+          <span class="admin-pill">ADMIN</span>
+          <div class="subbar__titles"><strong>Moderasi Ulasan</strong><span class="mono">semua produk</span></div>
+          <span class="subbar__spacer"></span>
+        </header>
+        <div class="screen__body" id="admin-ulasan-body"></div>
+      </section>
+
+      <!-- ============ LAYAR: ADMIN Pengguna ============ -->
+      <section class="screen screen--sub" id="screen-admin-pengguna" data-tab="admin-pengguna" aria-label="Daftar pengguna">
+        <header class="subbar subbar--admin">
+          <span class="admin-pill">ADMIN</span>
+          <div class="subbar__titles"><strong>Pengguna</strong><span class="mono">terdaftar di toko</span></div>
+          <span class="subbar__spacer"></span>
+        </header>
+        <div class="screen__body" id="admin-pengguna-body"></div>
       </section>
 
       <!-- ============ LAYAR: AKUN ============ -->
@@ -402,7 +430,31 @@
       </section>
     </main>
 
-    <!-- ============ Tab bar ============ -->
+    <!-- ============ Tab bar admin (khusus role admin) ============ -->
+    <nav class="tabbar tabbar--admin" id="admin-tabbar" role="navigation" aria-label="Navigasi admin" hidden>
+      <button type="button" class="tab" data-adm="admin">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button type="button" class="tab" data-adm="admin-pesanan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h13l5 5v3h-2a3 3 0 0 1-6 0H9a3 3 0 0 1-6 0z"/><circle cx="6.5" cy="16" r="1.5"/><circle cx="16.5" cy="16" r="1.5"/></svg>
+        <span>Pesanan</span>
+      </button>
+      <button type="button" class="tab" data-adm="admin-ulasan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.1 6-5.4-3-5.4 3 1.1-6L3.2 9.4l6.1-.8z"/></svg>
+        <span>Ulasan</span>
+      </button>
+      <button type="button" class="tab" data-adm="admin-pengguna">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.5"/><path d="M14.5 14.5A5.5 5.5 0 0 1 21.5 20"/></svg>
+        <span>Pengguna</span>
+      </button>
+      <button type="button" class="tab" data-goto="shop">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg>
+        <span>Toko</span>
+      </button>
+    </nav>
+
+    <!-- ============ Tab bar pembeli ============ -->
     <nav class="tabbar" role="navigation" aria-label="Navigasi utama">
       <button type="button" class="tab is-active" data-tab="shop">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg>
