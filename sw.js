@@ -1,5 +1,5 @@
 /* Aura Atelier — service worker sederhana: cache-first untuk app shell */
-const CACHE = 'aura-atelier-v12';
+const CACHE = 'aura-atelier-v13';
 const SHELL = [
   '/',
   '/index.html',
