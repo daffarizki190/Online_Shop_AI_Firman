@@ -3,33 +3,27 @@
     <radialGradient id="bg" cx="50%" cy="42%" r="75%">
       <stop offset="0%" stop-color="#F7F5F0"/><stop offset="100%" stop-color="#ECE9E1"/>
     </radialGradient>
+    <linearGradient id="sisi" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,0,0,.13)"/><stop offset="20%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="80%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,.13)"/>
+    </linearGradient>
+    <radialGradient id="cahaya" cx="50%" cy="34%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,255,255,.10)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
     <clipPath id="body-clip"><path d="M356 300 L268 336 L216 470 L300 512 L322 470 L322 940 Q448 966 574 940 L574 470 L596 512 L680 470 L628 336 L540 300 L470 330 L426 300 Z"/></clipPath>
   </defs>
   <rect width="896" height="1200" fill="url(#bg)"/>
-  <ellipse cx="448" cy="980" rx="252" ry="26" fill="rgba(0,0,0,.10)"/>
-  <ellipse cx="448" cy="992" rx="190" ry="18" fill="rgba(0,0,0,.08)"/>
-  
-  <path d="M356 300 L268 336 L216 470 L300 512 L322 470 L322 940 Q448 966 574 940 L574 470 L596 512 L680 470 L628 336 L540 300 L470 330 L426 300 Z" fill="#3E4668" stroke="rgba(0,0,0,.28)" stroke-width="4" stroke-linejoin="round"/>
+  <ellipse cx="448" cy="984" rx="238" ry="24" fill="rgba(0,0,0,.09)"/>
+  <path d="M356 300 L268 336 L216 470 L300 512 L322 470 L322 940 Q448 966 574 940 L574 470 L596 512 L680 470 L628 336 L540 300 L470 330 L426 300 Z" fill="#3E4668" stroke="rgba(0,0,0,.26)" stroke-width="3.5" stroke-linejoin="round"/>
   <g clip-path="url(#body-clip)">
-    <path d="M322 300 H400 V960 H322 Z" fill="rgba(0,0,0,.08)"/>
-    <path d="M496 300 H574 V960 H496 Z" fill="rgba(0,0,0,.06)"/>
-    <ellipse cx="448" cy="440" rx="118" ry="88" fill="rgba(255,255,255,.09)"/>
-    <ellipse cx="448" cy="368" rx="72" ry="26" fill="rgba(0,0,0,.10)"/>
-    <path d="M322 470 L356 500 L356 560 L322 520 Z" fill="rgba(0,0,0,.07)"/>
-    <path d="M574 470 L540 500 L540 560 L574 520 Z" fill="rgba(0,0,0,.07)"/>
-    <path d="M380 560 Q448 586 516 560" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M372 662 Q448 692 524 662" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M556 700 q22 20 10 48" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M340 700 q-16 24 -4 52" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M448 760 q30 14 20 52" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M500 600 q26 16 18 46" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/><path d="M396 620 q-24 18 -12 46" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="5" stroke-linecap="round"/>
-    <path d="M336 910 Q448 936 560 910" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="4"/>
-    <path d="M338 918 Q448 944 558 918" fill="none" stroke="rgba(0,0,0,.24)" stroke-width="2.5" stroke-dasharray="10 8"/>
+    <rect x="300" y="280" width="296" height="700" fill="url(#sisi)"/>
+    <rect x="300" y="280" width="296" height="700" fill="url(#cahaya)"/>
+    <path d="M336 910 Q448 936 560 910" fill="none" stroke="rgba(0,0,0,.13)" stroke-width="2.5" stroke-dasharray="8 7"/>
   </g>
-  
-  <path d="M352 316 L326 452" stroke="rgba(0,0,0,.16)" stroke-width="3"/>
-  <path d="M544 316 L570 452" stroke="rgba(0,0,0,.16)" stroke-width="3"/>
-  <path d="M398 300 Q448 282 498 300 L448 352 Z" fill="#2C324C" opacity=".9" stroke="rgba(0,0,0,.22)" stroke-width="3"/>
-       <line x1="448" y1="352" x2="448" y2="912" stroke="rgba(0,0,0,.18)" stroke-width="2.5"/>
-       <line x1="438" y1="352" x2="438" y2="912" stroke="rgba(0,0,0,.14)" stroke-width="2"/>
-       <line x1="458" y1="352" x2="458" y2="912" stroke="rgba(0,0,0,.14)" stroke-width="2"/>
-       <circle cx="448" cy="430" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.28)" stroke-width="2"/><circle cx="448" cy="545" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.28)" stroke-width="2"/><circle cx="448" cy="660" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.28)" stroke-width="2"/><circle cx="448" cy="775" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.28)" stroke-width="2"/>
-  
-  
+  <path d="M352 322 Q336 392 324 464" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="3"/>
+       <path d="M544 322 Q560 392 572 464" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="3"/>
+  <path d="M400 302 Q448 284 496 302 L448 350 Z" fill="#2C324C" stroke="rgba(0,0,0,.20)" stroke-width="2.5"/>
+            <line x1="448" y1="352" x2="448" y2="912" stroke="rgba(0,0,0,.15)" stroke-width="2.5"/>
+            <circle cx="448" cy="438" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.25)" stroke-width="2"/><circle cx="448" cy="556" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.25)" stroke-width="2"/><circle cx="448" cy="674" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.25)" stroke-width="2"/><circle cx="448" cy="792" r="6" fill="#F4F2ED" stroke="rgba(0,0,0,.25)" stroke-width="2"/>
   
 </svg>
