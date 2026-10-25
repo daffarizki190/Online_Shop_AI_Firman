@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 896 1200">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#F7F5F0"/><stop offset="100%" stop-color="#ECE9E1"/>
+    </radialGradient>
+    <linearGradient id="sisi" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="rgba(0,0,0,.13)"/><stop offset="20%" stop-color="rgba(0,0,0,0)"/>
+      <stop offset="80%" stop-color="rgba(0,0,0,0)"/><stop offset="100%" stop-color="rgba(0,0,0,.13)"/>
+    </linearGradient>
+    <radialGradient id="cahaya" cx="50%" cy="34%" r="55%">
+      <stop offset="0%" stop-color="rgba(255,255,255,.10)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <clipPath id="body-clip"><path d="M356 300 L268 336 L210 468 L240 690 Q244 702 256 698 L284 688 L316 502 L322 470 L322 900 Q448 930 574 900 L574 470 L580 502 L612 688 L640 698 Q652 702 656 690 L686 468 L628 336 L540 300 Q448 372 356 300 Z"/></clipPath>
+  </defs>
+  <rect width="896" height="1200" fill="url(#bg)"/>
+  <ellipse cx="448" cy="984" rx="238" ry="24" fill="rgba(0,0,0,.09)"/>
+  <path d="M356 300 L268 336 L210 468 L240 690 Q244 702 256 698 L284 688 L316 502 L322 470 L322 900 Q448 930 574 900 L574 470 L580 502 L612 688 L640 698 Q652 702 656 690 L686 468 L628 336 L540 300 Q448 372 356 300 Z" fill="#23252B" stroke="rgba(0,0,0,.26)" stroke-width="3.5" stroke-linejoin="round"/>
+  <g clip-path="url(#body-clip)">
+    <rect x="300" y="280" width="296" height="700" fill="url(#sisi)"/>
+    <rect x="300" y="280" width="296" height="700" fill="url(#cahaya)"/>
+    <path d="M336 880 Q448 906 560 880" fill="none" stroke="rgba(0,0,0,.13)" stroke-width="2.5" stroke-dasharray="8 7"/>
+  </g>
+  <path d="M352 326 Q330 396 322 464" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="3"/>
+       <path d="M544 326 Q566 396 574 464" fill="none" stroke="rgba(0,0,0,.10)" stroke-width="3"/>
+  <path d="M382 302 Q448 356 514 302 Q448 286 382 302 Z" fill="rgba(0,0,0,.15)"/>
+         <path d="M390 305 Q448 348 506 305" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="3"/>
+  
+      <path d="M242 686 L282 676" stroke="rgba(0,0,0,.16)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M614 676 L654 686" stroke="rgba(0,0,0,.16)" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Atelier — Spec Deck (4 Layar) | Dokumentasi</title>
+  <meta name="description" content="Spesifikasi produk dan prototipe interaktif 4 layar utama aplikasi fashion Aura Atelier dengan AI Size Recommendation untuk menekan retur akibat salah ukuran hingga di bawah 10%.">
+  <meta name="theme-color" content="#FAF9F6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ===== Print toolbar (hidden when printing) ===== -->
+  <div class="print-bar" role="region" aria-label="Opsi ekspor">
+    <div class="print-bar__info">
+      <span class="print-bar__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5" /></svg>
+      </span>
+      <div>
+        <strong>FORMAT SIAP CETAK (READY FOR PDF EXPORT)</strong>
+        <span>Seluruh 4 layar utama + design spec terkompilasi dalam 1 layout halaman utuh.</span>
+      </div>
+    </div>
+    <div class="print-bar__actions">
+      <button type="button" class="btn btn--light" id="btn-print">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6" /><rect x="3" y="9" width="18" height="8" rx="1" /><path d="M7 14h10v7H7z" /></svg>
+        Cetak / Save as PDF
+      </button>
+      <span class="print-bar__hint">Aktifkan opsi <em>"Background graphics"</em> saat cetak</span>
+    </div>
+  </div>
+
+  <main class="sheet" id="top">
+
+    <!-- ===== Header ===== -->
+    <header class="sheet-head">
+      <div class="sheet-head__main">
+        <span class="pill">Product &amp; UI Specification • Mobile Native (iOS / Android)</span>
+        <h1>Aura Atelier — <em>AI Fit Architecture</em></h1>
+        <p class="lead">Kompilasi 4 layar utama e-commerce fashion dengan AI Size Recommendation, terintegrasi untuk menekan <em>sizing uncertainty</em> dan retur hingga &lt; 10%.</p>
+      </div>
+      <dl class="meta-card">
+        <div><dt>Style Approach</dt><dd>Minimalist Editorial</dd></div>
+        <div><dt>Design System</dt><dd>Warm Atelier (#FAF9F6)</dd></div>
+        <div><dt>Font Family</dt><dd>Playfair &amp; Jakarta Sans</dd></div>
+        <div><dt>Target Tech</dt><dd>Flutter / Cross-platform</dd></div>
+      </dl>
+    </header>
+
+    <!-- ===== Journey ===== -->
+    <section class="block" aria-labelledby="journey-title">
+      <div class="block__head">
+        <h2 class="eyebrow-title" id="journey-title">User Journey &amp; Screen Progression (Core 4 Steps)</h2>
+        <span class="mono-muted">4 Alur Terhubung</span>
+      </div>
+      <ol class="journey" id="journey">
+        <li class="journey__step is-active" data-step="1">
+          <span class="journey__num">01. PDP View</span>
+          <strong>Product Detail</strong>
+          <p>Widget "Cari Ukuran Pas (30 Detik)" terpasang halus berdampingan.</p>
+        </li>
+        <li class="journey__step" data-step="2">
+          <span class="journey__num">02. Input Form</span>
+          <strong>2-Step Questionnaire</strong>
+          <p>Data TB, BB, usia, drape fit &amp; klasifikasi bentuk siluet badan.</p>
+        </li>
+        <li class="journey__step" data-step="3">
+          <span class="journey__num">03. Result &amp; Matrix</span>
+          <strong>Fit Recommendation</strong>
+          <p>Indikator jatuh pakaian per zona, confidence score, matriks garansi.</p>
+        </li>
+        <li class="journey__step" data-step="4">
+          <span class="journey__num">04. Checkout</span>
+          <strong>Verified Cart &amp; Bag</strong>
+          <p>Lencana ukuran terverifikasi, kurir lokal &amp; jaminan 7 hari retur.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ===== Screens ===== -->
+    <section class="block block--flush" aria-labelledby="screens-title">
+      <div class="block__head block__head--split">
+        <div>
+          <h2 class="serif-title" id="screens-title">Visual Antarmuka 4 Layar Utama</h2>
+          <p class="sub">Prototipe interaktif format mobile app (representasi viewport native). Coba alurnya dari Layar 01 sampai 04.</p>
+        </div>
+        <span class="status-chip"><i aria-hidden="true"></i>Prinsip Anti-Generic UI Validated</span>
+      </div>
+
+      <div class="screens" id="screens">
+
+        <!-- ================= SCREEN 01 — PDP ================= -->
+        <article class="screen-col" id="screen-1" aria-label="Layar 01: Halaman Produk">
+          <div class="screen-col__label"><span>SCREEN 01</span><span class="tag">Halaman Produk</span></div>
+          <div class="phone">
+            <div class="phone__screen">
+              <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="statusbar__icons"><i></i><i></i><b></b></span></div>
+              <div class="appbar">
+                <span class="brand">AURA ATELIER</span>
+                <button type="button" class="icon-btn" id="pdp-bag-btn" aria-label="Buka tas belanja">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8h12l-1 12H7z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></svg>
+                  <span class="badge-count" id="bag-count" hidden>0</span>
+                </button>
+              </div>
+
+              <div class="phone__body">
+                <figure class="pdp-media">
+                  <img src="assets/boxy-tee-noir.jpg" alt="Heavyweight Boxy T-Shirt warna Noir tergantung di hanger kayu" width="896" height="1200" fetchpriority="high">
+                  <span class="pdp-media__gsm">360 GSM</span>
+                  <figcaption class="pdp-media__live"><i aria-hidden="true"></i><span id="pdp-viewers">23</span> orang melihat produk ini</figcaption>
+                </figure>
+
+                <div class="pdp-info">
+                  <h3 class="pdp-title" id="pdp-title">Heavyweight Boxy T-Shirt — 04 Noir</h3>
+                  <p class="pdp-price"><strong id="pdp-price">Rp 449.000</strong> <s id="pdp-compare">Rp 549.000</s></p>
+
+                  <div class="row-between">
+                    <span class="label-sm">Pilih Ukuran</span>
+                    <button type="button" class="link-btn" id="btn-size-chart">Panduan (cm)</button>
+                  </div>
+                  <div class="size-chips" role="radiogroup" aria-label="Pilih ukuran" id="pdp-sizes"></div>
+                  <p class="size-note" id="pdp-size-note" aria-live="polite"></p>
+
+                  <div class="ai-card" id="ai-card"></div>
+
+                  <details class="fabric">
+                    <summary>Detail Bahan &amp; Kalibrasi Kain</summary>
+                    <dl>
+                      <div><dt>Material</dt><dd id="fab-material"></dd></div>
+                      <div><dt>Stretch factor</dt><dd id="fab-stretch"></dd></div>
+                      <div><dt>Susut setelah cuci</dt><dd id="fab-shrink"></dd></div>
+                      <div><dt>Potongan</dt><dd>Boxy, drop-shoulder</dd></div>
+                    </dl>
+                  </details>
+                </div>
+              </div>
+
+              <div class="phone__cta">
+                <button type="button" class="btn btn--dark btn--block" id="pdp-add">Pilih Ukuran Dulu</button>
+              </div>
+
+              <!-- Bottom sheet: size chart -->
+              <div class="sheet-overlay" id="size-chart-sheet" hidden>
+                <div class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="size-chart-title">
+                  <div class="bottom-sheet__grip" aria-hidden="true"></div>
+                  <div class="row-between">
+                    <h4 id="size-chart-title">Size Chart Matrix (cm)</h4>
+                    <button type="button" class="icon-btn icon-btn--sm" data-close-sheet aria-label="Tutup">✕</button>
+                  </div>
+                  <table class="chart-table">
+                    <thead><tr><th>Size</th><th>L. Dada</th><th>Panjang</th><th>Bahu</th><th>Lengan</th></tr></thead>
+                    <tbody id="size-chart-body"></tbody>
+                  </table>
+                  <p class="fineprint">Diukur flat-lay sebelum pencucian. Susut kain ±2% sudah diperhitungkan oleh AI.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ================= SCREEN 02 — QUESTIONNAIRE ================= -->
+        <article class="screen-col" id="screen-2" aria-label="Layar 02: Kuesioner Presisi">
+          <div class="screen-col__label"><span>SCREEN 02</span><span class="tag">Kuesioner Presisi</span></div>
+          <div class="phone">
+            <div class="phone__screen">
+              <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="statusbar__icons"><i></i><i></i><b></b></span></div>
+
+              <div class="q-progress">
+                <div class="row-between">
+                  <span class="label-xs" id="q-step-label">Langkah 1 dari 2</span>
+                  <span class="label-xs" id="q-step-pct">50%</span>
+                </div>
+                <div class="progress" role="progressbar" aria-labelledby="q-step-label" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" id="q-progress"><span></span></div>
+              </div>
+
+              <div class="phone__body">
+                <div class="q-intro">
+                  <h3 class="serif-sm">Temukan Ukuran Presisi</h3>
+                  <p class="muted-sm">Mencocokkan dimensi tubuh dengan pola potongan garmen.</p>
+                </div>
+
+                <div class="segmented segmented--method" role="tablist" aria-label="Metode pengukuran">
+                  <button type="button" role="tab" aria-selected="true" id="tab-quick" aria-controls="panel-quick">Kuesioner · 30 dtk</button>
+                  <button type="button" role="tab" aria-selected="false" id="tab-camera" aria-controls="panel-camera">Scan Kamera</button>
+                </div>
+
+                <!-- Quick questionnaire -->
+                <form id="panel-quick" role="tabpanel" aria-labelledby="tab-quick" novalidate>
+                  <fieldset class="q-step" data-q-step="1">
+                    <legend class="visually-hidden">Data dasar tubuh</legend>
+                    <div class="segmented" role="radiogroup" aria-label="Jenis kelamin">
+                      <label><input type="radio" name="gender" value="male" checked><span>Pria</span></label>
+                      <label><input type="radio" name="gender" value="female"><span>Wanita</span></label>
+                    </div>
+
+                    <div class="range-field">
+                      <div class="row-between"><label for="in-height">Tinggi Badan</label><output for="in-height" id="out-height">175 cm</output></div>
+                      <input type="range" id="in-height" name="height" min="140" max="200" step="1" value="175">
+                    </div>
+                    <div class="range-field">
+                      <div class="row-between"><label for="in-weight">Berat Badan</label><output for="in-weight" id="out-weight">72 kg</output></div>
+                      <input type="range" id="in-weight" name="weight" min="38" max="130" step="1" value="72">
+                    </div>
+                    <div class="range-field">
+                      <div class="row-between"><label for="in-age">Usia</label><output for="in-age" id="out-age">28 th</output></div>
+                      <input type="range" id="in-age" name="age" min="15" max="70" step="1" value="28">
+                    </div>
+                    <p class="bmi-hint" id="bmi-hint" aria-live="polite"></p>
+                  </fieldset>
+
+                  <fieldset class="q-step" data-q-step="2" hidden>
+                    <legend class="visually-hidden">Preferensi potongan dan postur</legend>
+                    <p class="label-xs">Preferensi Potongan</p>
+                    <div class="choice-row" role="radiogroup" aria-label="Preferensi potongan">
+                      <label class="choice"><input type="radio" name="fit" value="tight"><span>Pas Tubuh</span></label>
+                      <label class="choice"><input type="radio" name="fit" value="regular" checked><span>Standar</span></label>
+                      <label class="choice"><input type="radio" name="fit" value="oversized"><span>Longgar</span></label>
+                    </div>
+
+                    <p class="label-xs">Bentuk Postur</p>
+                    <div class="shape-grid" role="radiogroup" aria-label="Bentuk postur tubuh" id="shape-grid"></div>
+                    <p class="fineprint" id="shape-desc"></p>
+                  </fieldset>
+                </form>
+
+                <!-- Camera scan (simulated) -->
+                <div id="panel-camera" role="tabpanel" aria-labelledby="tab-camera" hidden>
+                  <div class="scan-stage" id="scan-stage" data-state="idle">
+                    <svg class="scan-figure" viewBox="0 0 120 220" aria-hidden="true">
+                      <g id="pose-front">
+                        <circle cx="60" cy="26" r="14" />
+                        <path d="M38 48 Q60 40 82 48 L92 110 L84 112 L78 70 L78 130 L74 205 L64 205 L60 140 L56 205 L46 205 L42 130 L42 70 L36 112 L28 110 Z" />
+                      </g>
+                      <g id="pose-side" hidden>
+                        <circle cx="60" cy="26" r="14" />
+                        <path d="M50 46 Q62 42 70 48 L74 100 L70 132 L68 205 L56 205 L52 132 L48 100 Z" />
+                      </g>
+                    </svg>
+                    <div class="scan-line" aria-hidden="true"></div>
+                    <span class="scan-corner tl"></span><span class="scan-corner tr"></span><span class="scan-corner bl"></span><span class="scan-corner br"></span>
+                    <p class="scan-status" id="scan-status" aria-live="polite">Pose 1/2 · Berdiri tegap menghadap kamera</p>
+                  </div>
+                  <ul class="scan-checks">
+                    <li>Diproses di perangkat (on-device), foto tidak dikirim ke server</li>
+                    <li>Hanya keypoints &amp; kontur yang diekstraksi</li>
+                    <li>Gunakan tinggi badan dari kuesioner sebagai skala</li>
+                  </ul>
+                  <p class="fineprint">Simulasi prototipe. Versi produksi memakai 3DLOOK Mobile Tailor SDK / Sizekick.</p>
+                </div>
+              </div>
+
+              <div class="phone__cta phone__cta--split">
+                <button type="button" class="btn btn--ghost" id="q-back" hidden>Kembali</button>
+                <button type="button" class="btn btn--dark btn--block" id="q-next">Lanjut →</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ================= SCREEN 03 — RESULT ================= -->
+        <article class="screen-col" id="screen-3" aria-label="Layar 03: Hasil Fitting">
+          <div class="screen-col__label"><span>SCREEN 03</span><span class="tag">Hasil Fitting Realistis</span></div>
+          <div class="phone">
+            <div class="phone__screen">
+              <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="statusbar__icons"><i></i><i></i><b></b></span></div>
+              <div class="phone__body" id="result-body" aria-live="polite"></div>
+              <div class="phone__cta">
+                <button type="button" class="btn btn--dark btn--block" id="result-add" disabled>Lengkapi Kuesioner Dulu</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ================= SCREEN 04 — CART ================= -->
+        <article class="screen-col" id="screen-4" aria-label="Layar 04: Checkout dan Tas">
+          <div class="screen-col__label"><span>SCREEN 04</span><span class="tag">Checkout &amp; Bag</span></div>
+          <div class="phone">
+            <div class="phone__screen">
+              <div class="statusbar" aria-hidden="true"><span>9:41</span><span class="statusbar__icons"><i></i><i></i><b></b></span></div>
+              <div class="appbar">
+                <span class="brand brand--sm">TAS BELANJA</span>
+                <span class="mono-muted" id="cart-count-label">0 item</span>
+              </div>
+              <div class="phone__body" id="cart-body"></div>
+              <div class="phone__cta">
+                <button type="button" class="btn btn--dark btn--block" id="cart-pay" disabled>Tas Masih Kosong</button>
+              </div>
+
+              <!-- Bottom sheet: post-purchase micro survey -->
+              <div class="sheet-overlay" id="survey-sheet" hidden>
+                <div class="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby="survey-title">
+                  <div class="bottom-sheet__grip" aria-hidden="true"></div>
+                  <p class="label-xs" id="survey-order"></p>
+                  <h4 id="survey-title" class="serif-sm">Paket diterima. Apakah ukurannya pas?</h4>
+                  <p class="muted-sm">Jawaban Anda langsung mengkalibrasi model AI untuk pembeli berikutnya.</p>
+                  <div class="survey-options">
+                    <button type="button" class="survey-opt" data-feedback="too_small">Kekecilan</button>
+                    <button type="button" class="survey-opt survey-opt--good" data-feedback="perfect">Pas Sempurna</button>
+                    <button type="button" class="survey-opt" data-feedback="too_big">Kebesaran</button>
+                  </div>
+                  <p class="fineprint">Simulasi: alur pembayaran → pengiriman → diterima dipercepat untuk demo.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== Guidelines ===== -->
+    <section class="block" aria-labelledby="guide-title">
+      <h2 class="serif-title" id="guide-title">Pedoman Desain &amp; Technical Constraints</h2>
+      <div class="guide-grid">
+        <div class="guide-card">
+          <h3><i class="dot dot--accent"></i>Palet &amp; Token Warna</h3>
+          <ul class="swatches">
+            <li><span class="sw" style="--c:#FAF9F6"></span><b>Surface Kanvas</b> Off-White #FAF9F6</li>
+            <li><span class="sw" style="--c:#121212"></span><b>Teks Utama</b> Hitam Arang #121212</li>
+            <li><span class="sw" style="--c:#E4E4E7"></span><b>Border</b> Tipis solid #E4E4E7 (no drop shadow)</li>
+            <li><span class="sw" style="--c:#B84A28"></span><b>Aksen Aksi</b> Terracotta #B84A28</li>
+          </ul>
+        </div>
+        <div class="guide-card">
+          <h3><i class="dot dot--ink"></i>Tipografi &amp; Font Pairing</h3>
+          <ul>
+            <li><b>Judul Editorial</b> Playfair Display (-0.02em letter spacing)</li>
+            <li><b>Fungsional UI</b> Plus Jakarta Sans (400–600)</li>
+            <li><b>Label &amp; Kategori</b> All-caps, kerning 0.08em</li>
+            <li><b>Hierarchy</b> Kontras ketebalan tajam &amp; proporsional</li>
+          </ul>
+        </div>
+        <div class="guide-card">
+          <h3><i class="dot dot--fit"></i>Fitur AI Sizing Membumi</h3>
+          <ul>
+            <li><b>No Hologram</b> Tanpa 3D glowing neon &amp; sparkles</li>
+            <li><b>Indikator Bars</b> Visualisasi jatuh bahan di tubuh per zona</li>
+            <li><b>Social Proof</b> % pembeli serupa yang tidak retur</li>
+            <li><b>Zero Retur</b> Jaminan tukar ukuran 7 hari gratis</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Master prompt ===== -->
+    <section class="prompt-box" aria-labelledby="prompt-title">
+      <div class="row-between">
+        <h2 class="label-xs label-xs--light" id="prompt-title">Master Prompt Constraint (Ready to Copy)</h2>
+        <button type="button" class="btn btn--outline-light btn--sm" id="btn-copy-prompt">Salin Prompt</button>
+      </div>
+      <p id="prompt-text">"Buatkan gaya desain Minimalist Editorial E-Commerce (referensi: Uniqlo, COS, Zalora, Arket). DILARANG menggunakan gradasi warna ungu/neon, efek glowing (cyberpunk), atau dark mode futuristik yang dipenuhi glassmorphism buram dan ikon bintang tipis (sparkles). Gunakan latar belakang off-white (#FAF9F6 / #FAFAFA), teks hitam arang (#121212 / #1A1A1A), border tipis (1px solid #E4E4E7), serta sudut membulat yang halus (border-radius: 6px atau 8px, bukan kapsul penuh). Padukan font Display/Serif bernuansa tinggi (Playfair Display) untuk judul produk &amp; editorial dengan font Sans-Serif bersih (Plus Jakarta Sans) untuk teks antarmuka fungsional. Fokus pada kejelasan tipografi, hierarki ukuran pakaian yang nyata, foto berasio vertikal 3:4 dengan whitespace lega, microcopy bahasa Indonesia yang natural, serta komponen rekomendasi ukuran yang bersih, fungsional, dan tepercaya tanpa gimmick sci-fi."</p>
+    </section>
+
+    <footer class="sheet-foot">
+      <span>© 2026 Aura Atelier Technical &amp; UI Specification Deck. All rights reserved.</span>
+      <span class="mono-muted">Export Ready: 1-Page Consolidated PDF Document</span>
+    </footer>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/size-engine.js"></script>
+  <script src="js/spec.js"></script>
+</body>
+</html>

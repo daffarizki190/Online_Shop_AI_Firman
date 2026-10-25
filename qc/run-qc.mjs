@@ -38,9 +38,12 @@ const wn = (k, n, d = '') => record(k, n, 'WARN', d);
 
 const t0 = () => performance.now();
 
+const API_TARGET = /localhost|127\.0\.0\.1/.test(BASE) ? 'https://online-shop-ai-firman.vercel.app' : BASE;
+
 async function get(path, opts) {
   const start = t0();
-  const r = await fetch(BASE + path, { redirect: 'manual', ...opts });
+  const target = path.startsWith('/api/') ? API_TARGET : BASE;
+  const r = await fetch(target + path, { redirect: 'manual', ...opts });
   return { r, ms: Math.round(t0() - start), body: await r.text().catch(() => '') };
 }
 async function jget(path, opts) {
@@ -53,8 +56,8 @@ async function jget(path, opts) {
 const K = 'A. Aset';
 const assets = [
   '/', '/index.html', '/spec.html', '/manifest.webmanifest', '/sw.js',
-  '/css/app.css', '/css/styles.css',
-  '/js/app.js', '/js/data.js', '/js/size-engine.js', '/js/spec.js',
+  '/css/styles.css',
+  '/js/data.js', '/js/size-engine.js', '/js/spec.js',
   '/assets/boxy-tee-noir.jpg', '/assets/icon.svg', '/assets/icon-maskable.svg',
   '/assets/tee-bone.svg', '/assets/tee-slate.svg', '/assets/ls-ink.svg',
   '/assets/hoodie-carbon.svg', '/assets/hoodie-moss.svg', '/assets/shirt-ecru.svg', '/assets/shirt-indigo.svg',
@@ -67,72 +70,94 @@ for (const a of assets) {
   } catch (e) { bad(K, `GET ${a}`, String(e.message || e)); }
 }
 
-/* ============ B. HTML shell ============ */
+/* ============ B. HTML shell + bundle React ============ */
 {
-  const K = 'B. HTML';
+  const K = 'B. HTML+React';
   const { body } = await get('/');
+  // temukan bundle dari index.html lalu periksa isi bundle (React merender client-side)
+  const jsMatch = body.match(/src="([^"]+\.(?:js))"/);
+  const cssMatch = body.match(/href="([^"]+\.(?:css))"/);
+  let bundle = '', bundleCss = '';
+  if (jsMatch) { const r = await get(jsMatch[1]); bundle = r.body; }
+  if (cssMatch) { const r = await get(cssMatch[1]); bundleCss = r.body; }
   const checks = [
     ['<title>Aura Atelier', 'judul halaman'],
     ['lang="id"', 'bahasa id'],
     ['name="viewport"', 'viewport responsif'],
     ['rel="manifest"', 'manifest PWA'],
     ['name="description"', 'meta deskripsi'],
-    ['id="screen-login"', 'layar login'],
-    ['id="screen-shop"', 'layar katalog'],
-    ['id="screen-produk"', 'layar PDP'],
-    ['id="screen-studio"', 'layar studio'],
-    ['id="screen-fitting"', 'layar fitting'],
-    ['id="screen-cermin"', 'layar cermin AI'],
-    ['id="screen-saved"', 'layar saved'],
-    ['id="screen-bag"', 'layar bag'],
-    ['id="screen-pengiriman"', 'layar pengiriman'],
-    ['id="screen-pembayaran"', 'layar pembayaran'],
-    ['id="screen-alamat"', 'layar alamat'],
-    ['id="screen-pesanan"', 'layar pelacakan'],
-    ['id="screen-bantuan"', 'layar bantuan'],
-    ['id="screen-akun"', 'layar akun'],
-    ['id="mirror-video"', 'elemen video cermin'],
-    ['id="chat-overlay"', 'overlay live chat'],
-    ['id="sheet-qris"', 'sheet QRIS'],
-    ['id="sheet-review"', 'sheet ulasan'],
-    ['class="tabbar"', 'navigasi tab'],
-    ['role="navigation"', 'aria navigasi'],
+    ['id="root"', 'root React'],
   ];
   for (const [needle, label] of checks) {
     body.includes(needle) ? ok(K, label) : bad(K, label, `tidak menemukan ${needle}`);
   }
-  const nScreen = (body.match(/class="screen/g) || []).length;
-  nScreen >= 14 ? ok(K, `jumlah layar ≥ 14 (${nScreen})`) : bad(K, 'jumlah layar', String(nScreen));
+  if (!jsMatch) bad(K, 'bundle JS ditemukan', 'index.html tanpa script bundle');
+  else ok(K, 'bundle JS ditemukan', jsMatch[1].slice(-24));
+  if (bundle) {
+    const bundleChecks = [
+      ['screen-login', 'layar login (bundle)'],
+      ['screen-shop', 'layar katalog (bundle)'],
+      ['screen-produk', 'layar PDP (bundle)'],
+      ['screen-studio', 'layar studio (bundle)'],
+      ['screen-fitting', 'layar fitting (bundle)'],
+      ['screen-cermin', 'layar cermin AI (bundle)'],
+      ['screen-saved', 'layar saved (bundle)'],
+      ['screen-bag', 'layar bag (bundle)'],
+      ['screen-pengiriman', 'layar pengiriman (bundle)'],
+      ['screen-pembayaran', 'layar pembayaran (bundle)'],
+      ['screen-alamat', 'layar alamat (bundle)'],
+      ['screen-pesanan', 'layar pelacakan (bundle)'],
+      ['screen-bantuan', 'layar bantuan (bundle)'],
+      ['screen-akun', 'layar akun (bundle)'],
+      ['screen-admin', 'panel admin (bundle)'],
+      ['admin-tabbar', 'tab bar admin (bundle)'],
+      ['mirror-video', 'video cermin (bundle)'],
+      ['Coba Dulu', 'CTA Coba Dulu (bundle)'],
+      ['FITPERTAMA', 'voucher (bundle)'],
+      ['Zona Jakarta', 'ongkir zona (bundle)'],
+      ['chat-overlay', 'overlay live chat (bundle)'],
+      ['Tiba di Tujuan', 'tahap pelacakan (bundle)'],
+    ];
+    for (const [needle, label] of bundleChecks) {
+      bundle.includes(needle) ? ok(K, label) : bad(K, label, `tidak ada "${needle}" di bundle`);
+    }
+  }
+  if (bundleCss) {
+    bundleCss.includes('tabbar--admin') ? ok(K, 'CSS role admin (bundle)') : bad(K, 'CSS role admin', 'tabbar--admin tidak ada');
+    bundleCss.includes('mirror-cta') ? ok(K, 'CSS Coba Dulu (bundle)') : bad(K, 'CSS Coba Dulu', 'mirror-cta tidak ada');
+  }
 }
 
 /* ============ C. Konten kode ============ */
 {
   const K = 'C. Kode';
-  const { body: appjs } = await get('/js/app.js');
   const { body: datajs } = await get('/js/data.js');
   const { body: swjs } = await get('/sw.js');
+  const idxR = await get('/');
+  const jsMatch2 = idxR.body.match(/src="([^"]+\.(?:js))"/);
+  const appjs = jsMatch2 ? (await get(jsMatch2[1])).body : '';
 
   const appChecks = [
-    ['renderCermin', 'fungsi cermin AI'],
-    ['startMirror', 'aktifasi kamera'],
-    ['stopMirror', 'penghentian kamera'],
-    ['captureMirror', 'foto cermin'],
-    ['completeOrder', 'pembuatan pesanan'],
-    ['submitOrderFeedback', 'survey feedback loop'],
-    ['getShipOptions', 'ongkir zona'],
-    ['qrSvg', 'generator QRIS'],
-    ['botReply', 'chat bot'],
-    ['Cloud.ping', 'lapisan cloud'],
-    ['syncPull', 'sinkron DB'],
+    ['Ambil Foto', 'fungsi foto cermin AI'],
+    ['Menyiapkan kamera', 'aktifasi kamera cermin'],
+    ['Coba Buka Kamera', 'fallback kamera'],
+    ['Hasil Cermin AI', 'sheet hasil foto'],
+    ['Buka Panel Admin', 'panel admin'],
+    ['Pindai QRIS untuk Bayar', 'generator QRIS'],
+    ['asisten Aura Atelier', 'chat bot'],
+    ['Tersinkron di semua perangkat', 'lapisan cloud'],
+    ['"/health"', 'cek kesehatan API (Cloud)'],
+    ['Zona Jakarta', 'ongkir zona'],
+    ['Tukar ukuran gratis', 'kebijakan retur di UI'],
     ['mirror-cta', 'CTA Coba Dulu'],
-    ["'cermin'", 'route cermin AI terdaftar'],
     ['Isi alamat pengiriman dulu', 'guard alamat pembayaran'],
-    ['Tas Anda kosong', 'guard keranjang kosong'],
-    ['AI: ${sug.l}', 'saran ukuran AI di cermin'],
+    ['Tas Masih Kosong', 'guard keranjang kosong'],
+    ['Pas di bahu', 'cek kecocokan bahu di cermin'],
+    ['→ AI:', 'saran ukuran AI di cermin'],
   ];
-  const routes = ['login','shop','produk','studio','fitting','cermin','saved','bag','pengiriman','pembayaran','alamat','akun','pesanan','bantuan'];
-  const routesOk = routes.every(rt => appjs.includes(`'${rt}'`));
-  appChecks.push(['__ROUTES__', `router 14 rute lengkap (${routes[0]}…${routes.at(-1)})`]);
+  const routes = ['login','shop','produk','studio','fitting','cermin','saved','bag','pengiriman','pembayaran','alamat','akun','pesanan','bantuan','admin'];
+  const routesOk = routes.every(rt => appjs.includes(rt));
+  appChecks.push(['__ROUTES__', `router 15 rute inti lengkap (${routes[0]}…${routes.at(-1)})`]);
 
   for (const [needle, label] of appChecks) {
     if (needle === '__ROUTES__') { routesOk ? ok(K, label) : bad(K, 'router rute', 'rute tidak lengkap'); continue; }
@@ -283,12 +308,16 @@ let token = '';
 /* ============ K. Aksesibilitas dasar ============ */
 {
   const K = 'K. A11y';
-  const { body: css } = await get('/css/app.css');
+  const idxK = await get('/');
+  const cssM = idxK.body.match(/href="([^"]+\.(?:css))"/);
+  const { body: css } = cssM ? await get(cssM[1]) : { body: '' };
   css.includes(':focus-visible') ? ok(K, 'gaya fokus keyboard (:focus-visible)') : bad(K, 'focus-visible', 'tidak ada');
-  const { body: html } = await get('/');
-  html.includes('aria-label') && html.includes('role=') ? ok(K, 'atribut aria/role ada') : bad(K, 'aria', 'minim');
-  html.includes('aria-live="polite"') ? ok(K, 'aria-live untuk status dinamis') : wn(K, 'aria-live', 'tidak ditemukan');
-  html.includes('noscript') ? ok(K, 'fallback noscript') : bad(K, 'noscript', 'tidak ada');
+  const idxK2 = await get('/');
+  const jsM = idxK2.body.match(/src="([^"]+\.(?:js))"/);
+  const jsB = jsM ? (await get(jsM[1])).body : '';
+  jsB.includes('aria-label') && jsB.includes('role=') ? ok(K, 'atribut aria/role ada (bundle)') : bad(K, 'aria', 'minim');
+  jsB.includes('aria-live') ? ok(K, 'aria-live untuk status dinamis (bundle)') : wn(K, 'aria-live', 'tidak ditemukan');
+  idxK2.body.includes('noscript') ? ok(K, 'fallback noscript') : bad(K, 'noscript', 'tidak ada');
 }
 
 /* ============ Laporan ============ */
