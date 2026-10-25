@@ -269,7 +269,6 @@
 
     $$('.screen').forEach((scr) => scr.classList.toggle('is-active', scr.id === 'screen-' + route));
     $$('.tab').forEach((tab) => tab.classList.toggle('is-active', tab.dataset.tab === $('#screen-' + route)?.dataset.tab));
-    $('.tabbar').hidden = route === 'login';
 
     const body = $('#screen-' + route + ' .screen__body');
     if (body) body.scrollTop = 0;
