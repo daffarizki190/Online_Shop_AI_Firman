@@ -81,6 +81,7 @@ export interface AppState {
   search: SearchState; showAllReviews: boolean;
   mirrorSku: string | null; mirrorSize: string | null;
   toast: string | null; sheet: string | null; paying: boolean;
+  history: string[];
   reviewDraft: { sku: string | null; rating: number };
   adminCache: { at: number; data: AdminData | null };
   viewers: number;
@@ -111,7 +112,7 @@ export const initialState: AppState = {
   userReviews: load(STORE.reviews, {}), remoteReviews: {},
   search: { q: '', cat: 'Semua', sort: 'pop' }, showAllReviews: false,
   mirrorSku: null, mirrorSize: null,
-  toast: null, sheet: null, paying: false,
+  toast: null, sheet: null, paying: false, history: [],
   reviewDraft: { sku: null, rating: 0 },
   adminCache: { at: 0, data: null },
   viewers: 18 + Math.floor(Math.random() * 14),
@@ -263,6 +264,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (st.auth && route === 'login') route = st.auth.role === 'admin' ? 'admin' : 'shop';
       if (route.startsWith('admin') && st.auth?.role !== 'admin') { toast('Area ini khusus admin.'); location.replace('#/shop'); return; }
 
+      const hist = ((window as any).__auraHistory || []);
+      const entry = param ? route + '/' + param : route;
+      if (hist[hist.length - 1] !== entry) hist.push(entry);
+      (window as any).__auraHistory = hist.slice(-20);
       const patch: Partial<AppState> = { route, param, sheet: null };
       if (route === 'shop' && !['shop', 'produk'].includes(st.route)) {
         patch.search = { q: '', cat: 'Semua', sort: 'pop' };

@@ -114,11 +114,24 @@ export function SubbarAdmin({ title, sub, right }: { title: string; sub: string;
   );
 }
 
+function setHistory(h: string[]) {
+  (window as any).__auraHistory = h;
+}
+
 export function Subbar({ backTo, title, sub, right }: { backTo: string; title: React.ReactNode; sub?: React.ReactNode; right?: React.ReactNode }) {
-  const { goto } = useApp();
+  const { goto, s } = useApp();
+  s.history = (window as any).__auraHistory || [];
+  const back = () => {
+    // Riwayat in-app dulu (kalau ada langkah sebelumnya di sesi ini), kalau tidak ke tujuan bawaan
+    if (s.history.length > 1) {
+      const prev = s.history[s.history.length - 2];
+      setHistory(s.history.slice(0, -1)); // buang entry saat ini, prev jadi atas stack
+      goto(prev);
+    } else goto(backTo);
+  };
   return (
     <header className="subbar">
-      <button type="button" className="icon-btn" aria-label="Kembali" onClick={() => goto(backTo)}><IconBack /></button>
+      <button type="button" className="icon-btn" aria-label="Kembali" onClick={back}><IconBack /></button>
       <div className="subbar__titles"><strong>{title}</strong>{sub != null && <span className="mono">{sub}</span>}</div>
       {right ?? <span className="subbar__spacer" aria-hidden="true" />}
     </header>
