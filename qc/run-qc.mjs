@@ -253,6 +253,15 @@ let token = '';
     const { r, body } = await get('/api/health', { method: 'OPTIONS' });
     r.status === 204 && (r.headers.get('access-control-allow-origin') || '') !== '' ? ok(K, 'preflight OPTIONS 204 + header') : bad(K, 'preflight', `status ${r.status}`);
   }
+
+  // Proteksi panel admin
+  {
+    const K = 'E2. API admin';
+    let x = await jget('/api/admin/overview');
+    x.r.status === 403 ? ok(K, 'tanpa token → 403') : bad(K, 'proteksi admin', `status ${x.r.status}`);
+    x = await jget('/api/admin/overview', { headers: { authorization: 'Bearer ' + token } });
+    x.r.status === 403 ? ok(K, 'token user biasa ditolak → 403') : bad(K, 'non-admin ditolak', `status ${x.r.status}`);
+  }
 }
 
 /* ============ J. Performa ringan ============ */

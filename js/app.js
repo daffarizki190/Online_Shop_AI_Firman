@@ -136,7 +136,7 @@
   ];
   const FIT_LABEL = { tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' };
   const STATUS_LABEL = { fit: 'Pas', tight: 'Agak Ketat', loose: 'Agak Longgar' };
-  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'cermin', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan'];
+  const ROUTES = ['login', 'shop', 'produk', 'studio', 'fitting', 'cermin', 'saved', 'bag', 'pengiriman', 'pembayaran', 'alamat', 'akun', 'pesanan', 'bantuan', 'admin'];
   const DEMO_USER = { name: 'Demo Aura', email: 'demo@aura.id', phone: '0812 0000 0000', pass: '123456' };
 
   /* Bentuk garmen & warna untuk overlay Cermin AI */
@@ -246,6 +246,12 @@
     if (state.auth && route === 'login') route = 'shop';
 
     if (state.route === 'cermin' && route !== 'cermin') stopMirror();
+    // Panel admin hanya untuk role admin
+    if (route === 'admin' && state.auth?.role !== 'admin') {
+      toast('Panel ini khusus admin.');
+      goto('shop');
+      return;
+    }
     // Masuk ke Shop dari rute lain (bukan kembali dari PDP) → reset pencarian
     if (route === 'shop' && !['shop', 'produk'].includes(state.route)) {
       state.search = { q: '', cat: 'Semua', sort: 'pop' };
@@ -276,6 +282,7 @@
     if (route === 'akun') renderAkun();
     if (route === 'pesanan') renderPesanan(param);
     if (route === 'bantuan') renderBantuan();
+    if (route === 'admin') renderAdmin();
     if (route === 'login') renderLogin();
     renderBadges();
   }
@@ -1102,8 +1109,8 @@
           body: { action: state.authMode, email, pass, name, phone },
         });
         Cloud.setToken(res.token);
-        // mirror ke lokal untuk mode offline
-        if (!users.some((u) => u.email === email)) {
+        // mirror ke lokal untuk mode offline (kecuali admin — kredensial server)
+        if (res.user.role !== 'admin' && !users.some((u) => u.email === email)) {
           users.push({ name: res.user.name, email, phone: res.user.phone, pass });
           save(STORE.users, users);
         }
@@ -1766,6 +1773,84 @@
     }
   }
 
+  /* -------------------------------------------------- PANEL ADMIN */
+  const ADMIN_STAGES = ['Pesanan Dibuat', 'Pembayaran Terverifikasi', 'Sedang Dikemas', 'Diserahkan ke Kurir', 'Dalam Perjalanan', 'Tiba di Tujuan'];
+
+  async function renderAdmin() {
+    const body = $('#admin-body');
+    body.innerHTML = '<div class="empty-state" style="padding:32px 24px"><p class="muted-sm">Memuat data toko…</p></div>';
+    let data;
+    try {
+      data = await Cloud.call('/admin/overview');
+    } catch (e) {
+      body.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg></div>
+          <p class="serif-sm">Data tidak dapat dimuat</p>
+          <p class="muted-sm">${esc(String(e.message || e))}</p>
+          <button type="button" class="btn btn--outline btn--sm" id="admin-retry">Coba Lagi</button>
+        </div>`;
+      return;
+    }
+    const s = data.stats;
+    body.innerHTML = `
+      <p class="label-xs">Ringkasan Toko</p>
+      <div class="adm-stats">
+        <div class="adm-stat"><b>${fmtIDR(s.revenue).replace('Rp ', '')}</b><small>Pendapatan</small></div>
+        <div class="adm-stat"><b>${s.orders}</b><small>Pesanan</small></div>
+        <div class="adm-stat"><b>${s.itemsSold}</b><small>Item Terjual</small></div>
+        <div class="adm-stat"><b>${s.users}</b><small>Pengguna</small></div>
+        <div class="adm-stat"><b>${s.reviews}</b><small>Ulasan</small></div>
+        <div class="adm-stat"><b>${s.avgRating ?? '—'}</b><small>Rata² Rating</small></div>
+      </div>
+
+      <p class="label-xs">Pesanan Terbaru — ubah status pengiriman</p>
+      ${data.recentOrders.length ? data.recentOrders.map((o) => `
+        <div class="adm-order">
+          <div class="adm-order__top">
+            <span class="adm-order__id">${o.id}</span>
+            <span class="order-row__total">${fmtIDR(o.totals?.total || 0)}</span>
+          </div>
+          <p class="adm-order__meta">${esc(o.buyer || '')} · ${fmtDate(o.at)} ${fmtTime(o.at)} · ${(o.items || []).reduce((a, i) => a + (i.qty || 1), 0)} item</p>
+          <select class="control" data-admin-order="${esc(o.buyer || '')}|${esc(o.id)}">
+            ${ADMIN_STAGES.map((st, i) => `<option value="${i}" ${o.statusIndex === i ? 'selected' : ''}>${st}</option>`).join('')}
+          </select>
+        </div>`).join('') : '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada pesanan.</p>'}
+
+      <p class="label-xs">Moderasi Ulasan Terbaru</p>
+      ${data.recentReviews.length ? data.recentReviews.map((r) => `
+        <div class="adm-review">
+          <div>
+            <p class="adm-review__text">"${esc(r.text || '')}"</p>
+            <p class="adm-review__meta">${esc(r.name || 'Pembeli')} · ${'★'.repeat(r.rating || 0)} · ${esc(r.sku || '')} · ${fmtDate(r.at || '')}</p>
+          </div>
+          <button type="button" class="btn btn--danger btn--sm" data-admin-review="${esc(r.sku || '')}|${esc(r.at || '')}">Hapus</button>
+        </div>`).join('') : '<p class="muted-sm" style="padding:6px 2px 14px">Belum ada ulasan pengguna.</p>'}
+
+      <p class="label-xs">Pengguna Terdaftar</p>
+      ${data.users.length ? data.users.map((u) => `
+        <div class="adm-user">
+          <div><b>${esc(u.name || '')}</b><br><span class="adm-user__email">${esc(u.email || '')}</span></div>
+          <span class="mono-muted">${u.createdAt ? fmtDate(u.createdAt) : ''}</span>
+        </div>`).join('') : '<p class="muted-sm">Belum ada pengguna.</p>'}
+      <p class="fineprint" style="margin-top:14px">Panel admin — data langsung dari database toko.</p>`;
+  }
+
+  async function adminSetOrder(buyer, id, statusIndex) {
+    try {
+      await Cloud.call('/admin', { method: 'POST', body: { action: 'order', buyer, id, statusIndex } });
+      toast(`Status ${id} → ${ADMIN_STAGES[statusIndex]}.`);
+    } catch (e) { toast('Gagal: ' + (e.message || e)); }
+  }
+
+  async function adminDeleteReview(sku, at) {
+    try {
+      await Cloud.call('/admin', { method: 'POST', body: { action: 'review-del', sku, at } });
+      toast('Ulasan dihapus.');
+      renderAdmin();
+    } catch (e) { toast('Gagal: ' + (e.message || e)); }
+  }
+
   /* -------------------------------------------------- AKUN */
   function renderAkun() {
     const u = state.auth;
@@ -1778,11 +1863,17 @@
       <div class="acct-card">
         <span class="acct-card__avatar">${initials(u.name)}</span>
         <div>
-          <p class="acct-card__name">${esc(u.name)}</p>
+          <p class="acct-card__name">${esc(u.name)}${u.role === 'admin' ? '<span class="admin-badge">ADMIN</span>' : ''}</p>
           <p class="acct-card__meta">${esc(u.email)} · ${esc(u.phone || '')}</p>
           ${Cloud.token ? '<span class="cloud-chip">☁ Tersinkron di semua perangkat</span>' : '<span class="cloud-chip cloud-chip--off">Data tersimpan di perangkat ini</span>'}
         </div>
       </div>
+
+      ${u.role === 'admin' ? `
+      <button type="button" class="chat-cta" data-goto="admin" style="margin-top:12px">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+        Buka Panel Admin
+      </button>` : ''}
 
       <div class="acct-group">
         <button type="button" class="acct-row" data-goto="studio">
@@ -1920,6 +2011,12 @@
         return;
       }
       if (t.dataset.orderFeedback) { submitOrderFeedback(t.dataset.orderId, t.dataset.orderFeedback); return; }
+      if (t.dataset.adminReview) {
+        const [sku, at] = t.dataset.adminReview.split('|');
+        adminDeleteReview(sku, at);
+        return;
+      }
+      if (t.id === 'admin-retry') { renderAdmin(); return; }
       if (t.dataset.cat) { state.search.cat = t.dataset.cat; renderCatalog(); return; }
       if (t.dataset.q) {
         state.search.q = t.dataset.q;
@@ -2107,6 +2204,15 @@
     $('#sort-select').addEventListener('change', (e) => {
       state.search.sort = e.target.value;
       renderCatalog();
+    });
+
+    // Admin: ubah status pesanan lewat select
+    $('#admin-body').addEventListener('change', (e) => {
+      const sel = e.target.closest('select[data-admin-order]');
+      if (sel) {
+        const [buyer, id] = sel.dataset.adminOrder.split('|');
+        adminSetOrder(buyer, id, Number(sel.value));
+      }
     });
 
     // Voucher

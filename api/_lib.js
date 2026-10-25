@@ -82,3 +82,23 @@ export function verifyToken(req) {
     return null;
   }
 }
+
+/* ---------------- admin ---------------- */
+export const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '').toLowerCase();
+const ADMIN_PASS = process.env.ADMIN_PASS || '';
+
+export function isAdminEmail(email) {
+  return !!ADMIN_EMAIL && email === ADMIN_EMAIL;
+}
+
+/** Autentikasi khusus admin (kredensial dari env, tidak pernah dikirim ke klien). */
+export function verifyAdminPass(pass) {
+  return !!ADMIN_PASS && typeof pass === 'string' && pass.length === ADMIN_PASS.length
+    && timingSafeEqual(Buffer.from(pass), Buffer.from(ADMIN_PASS));
+}
+
+/** Token valid + email = admin → email; selain itu null. */
+export function verifyAdmin(req) {
+  const email = verifyToken(req);
+  return isAdminEmail(email) ? email : null;
+}

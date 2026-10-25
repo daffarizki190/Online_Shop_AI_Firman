@@ -1,5 +1,5 @@
 /** POST /api/auth — { action: 'register'|'login', email, pass, name?, phone? } */
-import { json, preflight, readJSON, writeJSON, hashPass, verifyPass, signToken } from './_lib.js';
+import { json, preflight, readJSON, writeJSON, hashPass, verifyPass, signToken, isAdminEmail, verifyAdminPass } from './_lib.js';
 
 export const OPTIONS = preflight;
 
@@ -12,6 +12,17 @@ export async function POST(req) {
   const pass = String(body.pass || '');
   if (!/^\S+@\S+\.\S+$/.test(email)) return json({ error: 'Email tidak valid' }, 400);
   if (pass.length < 6) return json({ error: 'Kata sandi minimal 6 karakter' }, 400);
+
+  // Akun admin: kredensial dari env server — role admin pada respons
+  if (isAdminEmail(email)) {
+    if (action === 'register') return json({ error: 'Email admin tidak dapat didaftarkan' }, 403);
+    if (!verifyAdminPass(pass)) return json({ error: 'Email atau kata sandi salah' }, 401);
+    return json({
+      ok: true,
+      user: { email, name: 'Admin Aura Atelier', phone: '—', role: 'admin' },
+      token: signToken(email),
+    });
+  }
 
   const key = 'user:' + email;
 

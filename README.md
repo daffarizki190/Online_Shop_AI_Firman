@@ -72,6 +72,17 @@ Data pengguna tersimpan di **Vercel Blob** (`aura-db`, akses privat OIDC) lewat 
 
 Skema key Blob: `user:<email>`, `orders:<email>`, `reviews:<sku>`, `profile:<email>`. Katalog produk tetap statis di `js/data.js` (konten, bukan data pengguna).
 
+### 🛠️ Panel Admin
+
+Login dengan akun admin (`ADMIN_EMAIL` / `ADMIN_PASS` di Vercel env; demo: `admin@aura.id` / `AuraAdmin2026`) → halaman **Akun** memuncukkan tombol **Buka Panel Admin** (`#/admin`, terproteksi role — user biasa ditolak 403):
+
+- **Ringkasan toko**: pendapatan, jumlah pesanan, item terjual, pengguna, ulasan, rating rata-rata (agregat seluruh DB).
+- **Kelola pesanan**: daftar pesanan semua pembeli + **ubah status pengiriman** (6 tahap) langsung tersimpan ke DB pembeli.
+- **Moderasi ulasan**: hapus ulasan pengguna dari produk mana pun.
+- **Daftar pengguna** terdaftar.
+
+Endpoint: `GET /api/admin/overview`, `POST /api/admin` (`action: order | review-del`) — wajib token admin.
+
 Status (sesi, profil, keranjang, wishlist, alamat) tetap ada di `localStorage` (`aura.*.v1`) sebagai cache offline. SSL/HTTPS aktif otomatis di Vercel.
 
 ---
