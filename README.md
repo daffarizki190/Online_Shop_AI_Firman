@@ -13,6 +13,10 @@ Repo ini berisi **dua artefak**:
 
 ---
 
+## 🖼️ Gambar Produk
+
+Gambar katalog adalah **ilustrasi flat-lay premium** yang di-generate dari [`tools/generate-product-images.mjs`](tools/generate-product-images.mjs) (warna, lipatan, jahitan, kerah rib, bayangan — satu gaya konsisten). Untuk memakai **foto asli**: siapkan foto produk rasio 3:4 (≤300 KB), lalu timpa file di `assets/` dengan **nama yang sama** (mis. `assets/hoodie-moss.jpg` → ganti referensi di `js/data.js` atau konversi ke SVG container) — tanpa ubah kode lain. Regenerasi ilustrasi: `node tools/generate-product-images.mjs`.
+
 ## 🧪 QC Menyeluruh
 
 ```bash
