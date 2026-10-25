@@ -856,3 +856,16 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .mirror-cta__text strong { display: block; font-size: 13.5px; }
 .mirror-cta__text small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
 .mirror-cta__chev { flex: none; color: var(--accent); font-size: 20px; line-height: 1; }
+
+/* ---- Polish UX: hapus item, stepper klik, chip sinkron, toast ---- */
+.cart-item__remove { display: inline-block; font-size: 11px; margin-top: 6px; padding: 2px 0; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.cart-item__remove:active { color: var(--accent); }
+
+.steps-row li[data-step] { cursor: default; }
+.steps-row li.is-done[data-step], .steps-row li[data-step]:not(.is-active) { cursor: pointer; }
+.steps-row li.is-done[data-step]:active { opacity: 0.6; }
+
+.cloud-chip { display: inline-block; margin-top: 6px; font-size: 10.5px; font-weight: 700; color: var(--ok); background: var(--ok-soft); border-radius: 4px; padding: 3px 8px; }
+.cloud-chip--off { color: var(--muted); background: var(--surface-3); }
+
+.toast { bottom: calc(var(--tab-h) + 86px); }

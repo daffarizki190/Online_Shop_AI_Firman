@@ -411,6 +411,7 @@
         <button type="button" class="thumb" data-view="b" aria-label="Detail bahan"><img src="${p.image}" alt=""></button>
         <button type="button" class="thumb" data-view="c" aria-label="Detail jahitan"><img src="${p.image}" alt=""></button>
       </div>
+      <p class="fineprint" style="padding:6px 16px 0">💡 Ketuk foto utama untuk memperbesar (double-tap 2×)</p>
 
       <div class="pdp-info">
         <p class="eyebrow">${p.category} · Edit ${p.variant.split(' ')[0]}</p>
@@ -1214,6 +1215,7 @@
                   <button type="button" data-qty="1" data-idx="${idx}" aria-label="Tambah">+</button>
                 </span>
               </div>
+              <button type="button" class="link-btn cart-item__remove" data-remove="${idx}">Hapus</button>
             </div>
           </li>`;
         }).join('')}
@@ -1232,7 +1234,8 @@
         <div><dt>Subtotal (${count} item)</dt><dd>${fmtIDR(t.subtotal)}</dd></div>
         ${t.discount ? `<div class="is-discount"><dt>Voucher ${state.voucher.code}</dt><dd>−${fmtIDR(t.discount)}</dd></div>` : ''}
       </dl>
-      <p class="fineprint">Ongkir dihitung otomatis dari zona alamat di langkah berikutnya.</p>`;
+      <p class="fineprint">Ongkir dihitung otomatis dari zona alamat di langkah berikutnya.</p>
+      <div style="text-align:center;padding:6px 0 2px"><button type="button" class="link-btn" data-goto="shop">+ Lanjut lihat koleksi lain</button></div>`;
 
     cta.disabled = false;
     cta.textContent = 'Lanjut ke Pengiriman →';
@@ -1768,6 +1771,7 @@
         <div>
           <p class="acct-card__name">${esc(u.name)}</p>
           <p class="acct-card__meta">${esc(u.email)} · ${esc(u.phone || '')}</p>
+          ${Cloud.token ? '<span class="cloud-chip">☁ Data tersinkron di semua perangkat</span>' : '<span class="cloud-chip cloud-chip--off">Mode offline — data di perangkat ini</span>'}
         </div>
       </div>
 
@@ -1864,6 +1868,15 @@
       const tab = e.target.closest('.tab');
       if (tab) { goto(tab.dataset.tab); return; }
 
+      // Stepper checkout: ketuk langkah sebelumnya untuk mundur
+      const stepLi = e.target.closest('.steps-row li[data-step]');
+      if (stepLi) {
+        const target = { 1: 'bag', 2: 'pengiriman', 3: 'pembayaran' }[stepLi.dataset.step];
+        const curIdx = { bag: 1, pengiriman: 2, pembayaran: 3 }[state.route] || 9;
+        if (Number(stepLi.dataset.step) < curIdx) goto(target);
+        return;
+      }
+
       const t = e.target.closest('button');
       if (!t) {
         // Klik di luar autocomplete menutupnya
@@ -1880,6 +1893,15 @@
         if (item.qty <= 0) state.cart.splice(idx, 1);
         save(STORE.cart, state.cart);
         renderBadges(); renderBag();
+        return;
+      }
+      if (t.dataset.remove !== undefined && t.dataset.remove !== '') {
+        const idx = Number(t.dataset.remove);
+        const item = state.cart[idx];
+        state.cart.splice(idx, 1);
+        save(STORE.cart, state.cart);
+        renderBadges(); renderBag();
+        toast(`Size ${item?.size || ''} dihapus dari tas.`);
         return;
       }
       if (t.dataset.unsave) {
@@ -2094,6 +2116,15 @@
       }
     });
   }
+
+  /* -------------------------------------------------- kamera cermin: hemat baterai */
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopMirror();
+    } else if (state.route === 'cermin' && !state.mirror.on) {
+      startMirror();
+    }
+  });
 
   /* -------------------------------------------------- ticker status pesanan */
   setInterval(() => {
