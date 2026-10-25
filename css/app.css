@@ -62,13 +62,11 @@ s { color: var(--muted); font-weight: 400; }
 .serif-title { font-family: var(--font-serif); font-size: 24px; font-weight: 500; letter-spacing: -0.02em; }
 .serif-sm { font-family: var(--font-serif); font-size: 18px; font-weight: 500; }
 
-/* ============ Bingkai aplikasi (responsif) ============ */
+/* ============ Bingkai aplikasi: selalu full page ============ */
 .app-frame {
-  width: min(96vw, 640px);
-  height: min(94dvh, 1000px);
+  width: 100%;
+  height: 100dvh;
   background: var(--surface);
-  border: 1px solid #D7D5CF;
-  border-radius: 20px;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -503,14 +501,25 @@ s { color: var(--muted); font-weight: 400; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
 /* ============ Responsif ============ */
-/* Ponsel: fullscreen tanpa bingkai */
-@media (max-width: 600px) {
-  body { display: block; background: var(--surface); }
-  .app-frame { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
-}
-/* Grid katalog menyesuaikan lebar frame (2 kolom di ponsel, 3+ di lebih lebar) */
+html, body { width: 100%; }
+#root { width: 100%; height: 100dvh; display: flex; flex-direction: column; }
+body { display: block; background: var(--surface); }
+/* Grid katalog menyesuaikan lebar layar (2 kolom di ponsel, makin lebar makin banyak) */
 @media (min-width: 520px) {
-  #catalog-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  #catalog-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+}
+/* Konten panjang tetap nyaman dibaca di layar sangat lebar */
+@media (min-width: 900px) {
+  .pdp-info, .studio-step, #bag-body, #pengiriman-body, #pembayaran-body,
+  #alamat-body, #fitting-body, #saved-body, #bantuan-body, #akun-body,
+  #admin-body, #admin-pesanan-body, #admin-ulasan-body, #admin-pengguna-body,
+  #pesanan-body, .login__body {
+    max-width: 760px; margin-left: auto; margin-right: auto;
+  }
+  .pdp-media, .thumbs, .search-zone, .chip-row, .sort-row, .steps-row { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .pdp-media { border-radius: 12px; overflow: hidden; }
+  .mirror-stage { max-width: 760px; margin: 0 auto; border-radius: 12px; }
+  .screen__cta { max-width: 760px; margin-left: auto; margin-right: auto; width: calc(100% - 0px); }
 }
 /* Layar sangat sempit: rapatkan appbar */
 @media (max-width: 360px) {
