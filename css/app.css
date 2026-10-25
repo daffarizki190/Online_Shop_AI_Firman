@@ -505,10 +505,10 @@ html, body { width: 100%; }
 #root { width: 100%; height: 100dvh; display: flex; flex-direction: column; }
 body { display: block; background: var(--surface); }
 /* Jarak tepi menyeluruh di layar lebar (konten menyesuaikan, tidak menempel pinggir) */
-@media (min-width: 480px) {
+@media (min-width: 420px) {
   .appbar, .subbar { padding-left: 24px; padding-right: 24px; }
   .search-zone, .chip-row, .sort-row { padding-left: 24px; padding-right: 24px; }
-  .catalog-grid, .pdp-info, .thumbs, .studio-step, #bag-body, #pengiriman-body,
+  #catalog-grid, .pdp-info, .thumbs, .studio-step, #bag-body, #pengiriman-body,
   #pembayaran-body, #alamat-body, #fitting-body, #saved-body, #bantuan-body,
   #akun-body, #admin-body, #admin-pesanan-body, #admin-ulasan-body,
   #admin-pengguna-body, #pesanan-body, .steps-row, .login__body {
@@ -517,8 +517,8 @@ body { display: block; background: var(--surface); }
   .login__body { padding-left: 32px; padding-right: 32px; }
   .progress { margin: 0 24px; }
   .screen__cta { padding-left: 24px; padding-right: 24px; }
-  .adm-stats, .adm-nav { padding: 0; }
 }
+
 /* Grid katalog menyesuaikan lebar layar (2 kolom di ponsel, makin lebar makin banyak) */
 @media (min-width: 520px) {
   #catalog-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
