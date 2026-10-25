@@ -246,6 +246,12 @@
     if (state.auth && route === 'login') route = 'shop';
 
     if (state.route === 'cermin' && route !== 'cermin') stopMirror();
+    // Masuk ke Shop dari rute lain (bukan kembali dari PDP) → reset pencarian
+    if (route === 'shop' && !['shop', 'produk'].includes(state.route)) {
+      state.search = { q: '', cat: 'Semua', sort: 'pop' };
+      const si = $('#search-input'); if (si) si.value = '';
+      const ss = $('#sort-select'); if (ss) ss.value = 'pop';
+    }
     state.route = route;
     state.param = param;
 
@@ -276,11 +282,15 @@
   window.addEventListener('hashchange', applyRoute);
 
   /* -------------------------------------------------- KATALOG */
+  function searchableText(p) {
+    return (p.name + ' ' + p.variant + ' ' + p.category + ' ' + (p.keywords || []).join(' ')).toLowerCase();
+  }
+
   function catalogData() {
     const q = state.search.q.trim().toLowerCase();
     let list = CATALOG.filter((p) => {
       const catOk = state.search.cat === 'Semua' || p.category === state.search.cat;
-      const qOk = !q || (p.name + ' ' + p.variant + ' ' + p.category).toLowerCase().includes(q);
+      const qOk = !q || searchableText(p).includes(q);
       return catOk && qOk;
     });
     const avg = (p) => Cat.summarize(getReviews(p.sku_id)).avg;
@@ -323,7 +333,7 @@
     const box = $('#autocomplete');
     $('#search-clear').hidden = !q;
     if (!q) { box.hidden = true; return; }
-    const matches = CATALOG.filter((p) => (p.name + ' ' + p.variant + ' ' + p.category).toLowerCase().includes(q)).slice(0, 5);
+    const matches = CATALOG.filter((p) => searchableText(p).includes(q)).slice(0, 5);
     if (!matches.length) { box.hidden = true; return; }
     box.innerHTML = matches.map((p) => `
       <button type="button" class="ac-item" data-open-sku="${p.sku_id}">
@@ -1911,6 +1921,12 @@
       }
       if (t.dataset.orderFeedback) { submitOrderFeedback(t.dataset.orderId, t.dataset.orderFeedback); return; }
       if (t.dataset.cat) { state.search.cat = t.dataset.cat; renderCatalog(); return; }
+      if (t.dataset.q) {
+        state.search.q = t.dataset.q;
+        const si = $('#search-input'); if (si) si.value = t.dataset.q;
+        renderCatalog();
+        return;
+      }
       if (t.id === 'catalog-reset') {
         state.search = { q: '', cat: 'Semua', sort: 'pop' };
         $('#search-input').value = '';

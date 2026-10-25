@@ -31,7 +31,7 @@
 
   const CATALOG = [
     {
-      sku_id: 'TSHIRT-BOXY-NOIR-004', category: 'T-Shirt',
+      sku_id: 'TSHIRT-BOXY-NOIR-004', keywords: ['kaos','t-shirt','tshirt','baju','hitam','noir','black','boxy','oversized','basel'], category: 'T-Shirt',
       name: 'Heavyweight Boxy T-Shirt', variant: '04 Noir',
       price: 449000, compare_at_price: 549000, image: 'assets/boxy-tee-noir.jpg',
       fabric_specs: FABRIC_TEE, cut_ease: { chest: -2, shoulder: 1 },
@@ -45,7 +45,7 @@
       ],
     },
     {
-      sku_id: 'TSHIRT-BOXY-BONE-005', category: 'T-Shirt',
+      sku_id: 'TSHIRT-BOXY-BONE-005', keywords: ['kaos','tshirt','baju','krem','bone','cream','putih','boxy'], category: 'T-Shirt',
       name: 'Heavyweight Boxy T-Shirt', variant: '05 Bone',
       price: 449000, compare_at_price: 0, image: 'assets/tee-bone.svg',
       fabric_specs: FABRIC_TEE, cut_ease: { chest: -2, shoulder: 1 },
@@ -58,7 +58,7 @@
       ],
     },
     {
-      sku_id: 'TSHIRT-CREW-SLATE-006', category: 'T-Shirt',
+      sku_id: 'TSHIRT-CREW-SLATE-006', keywords: ['kaos','tshirt','baju','abu','slate','abu-abu','essential','crew'], category: 'T-Shirt',
       name: 'Crew Neck Essential Tee', variant: '06 Slate',
       price: 379000, compare_at_price: 429000, image: 'assets/tee-slate.svg',
       fabric_specs: { material: 'Supima Cotton 30s · 220 GSM', stretch_factor: 1.05, shrinkage_after_wash_pct: 1.5 },
@@ -71,7 +71,7 @@
       ],
     },
     {
-      sku_id: 'LSLEEVE-RIBS-INK-007', category: 'Longsleeve',
+      sku_id: 'LSLEEVE-RIBS-INK-007', keywords: ['kaos','lengan panjang','longsleeve','long sleeve','baju','hitam','ink','rib'], category: 'Longsleeve',
       name: 'Ribbed Longsleeve Base', variant: '07 Ink',
       price: 499000, compare_at_price: 0, image: 'assets/ls-ink.svg',
       fabric_specs: { material: 'Rib Cotton 2×2 · 280 GSM', stretch_factor: 1.12, shrinkage_after_wash_pct: 2.0 },
@@ -85,7 +85,7 @@
       ],
     },
     {
-      sku_id: 'HOODIE-HEAVY-CARBON-008', category: 'Hoodie',
+      sku_id: 'HOODIE-HEAVY-CARBON-008', keywords: ['hoodie','hoody','jaket','sweter','sweater','hitam','carbon','zip'], category: 'Hoodie',
       name: 'Heavyweight Zip Hoodie', variant: '08 Carbon',
       price: 749000, compare_at_price: 899000, image: 'assets/hoodie-carbon.svg',
       fabric_specs: FABRIC_HEAVY, cut_ease: { chest: 0, shoulder: 2 },
@@ -98,7 +98,7 @@
       ],
     },
     {
-      sku_id: 'HOODIE-HEAVY-MOSS-009', category: 'Hoodie',
+      sku_id: 'HOODIE-HEAVY-MOSS-009', keywords: ['hoodie','hoody','jaket','sweter','hijau','moss','pullover'], category: 'Hoodie',
       name: 'Heavyweight Pullover Hoodie', variant: '09 Moss',
       price: 749000, compare_at_price: 0, image: 'assets/hoodie-moss.svg',
       fabric_specs: FABRIC_HEAVY, cut_ease: { chest: 0, shoulder: 2 },
@@ -110,7 +110,7 @@
       ],
     },
     {
-      sku_id: 'SHIRT-OVS-ECRU-010', category: 'Kemeja',
+      sku_id: 'SHIRT-OVS-ECRU-010', keywords: ['kemeja','shirt','baju','krem','ecru','putih','camp collar','oversized'], category: 'Kemeja',
       name: 'Oversized Camp Collar Shirt', variant: '10 Ecru',
       price: 659000, compare_at_price: 749000, image: 'assets/shirt-ecru.svg',
       fabric_specs: FABRIC_SHIRT, cut_ease: { chest: 1, shoulder: 1 },
@@ -122,7 +122,7 @@
       ],
     },
     {
-      sku_id: 'SHIRT-OVS-INDIGO-011', category: 'Kemeja',
+      sku_id: 'SHIRT-OVS-INDIGO-011', keywords: ['kemeja','shirt','baju','biru','indigo','navy','camp collar'], category: 'Kemeja',
       name: 'Oversized Camp Collar Shirt', variant: '11 Indigo',
       price: 659000, compare_at_price: 0, image: 'assets/shirt-indigo.svg',
       fabric_specs: FABRIC_SHIRT, cut_ease: { chest: 1, shoulder: 1 },

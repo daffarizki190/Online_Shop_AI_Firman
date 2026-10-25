@@ -88,7 +88,7 @@
         <div class="search-zone">
           <div class="searchbar">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-            <input id="search-input" type="search" placeholder="Cari produk atau kategori…" autocomplete="off" aria-label="Cari produk">
+            <input id="search-input" type="search" placeholder="Cari: kaos, hoodie, kemeja…" autocomplete="off" aria-label="Cari produk">
             <button type="button" id="search-clear" class="icon-btn icon-btn--sm" hidden aria-label="Hapus pencarian">✕</button>
           </div>
           <div class="autocomplete" id="autocomplete" hidden></div>
@@ -110,7 +110,13 @@
           <div class="empty-state" id="catalog-empty" hidden>
             <div class="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
             <p class="serif-sm">Tidak ada produk yang cocok</p>
-            <p class="muted-sm">Coba kata kunci lain atau ganti kategori.</p>
+            <p class="muted-sm">Coba kata kunci populer:</p>
+            <div class="chip-row" style="justify-content:center;padding:4px 16px 8px;flex-wrap:wrap">
+              <button type="button" class="cat-chip" data-q="kaos">Kaos</button>
+              <button type="button" class="cat-chip" data-q="hoodie">Hoodie</button>
+              <button type="button" class="cat-chip" data-q="kemeja">Kemeja</button>
+              <button type="button" class="cat-chip" data-q="baju">Baju</button>
+            </div>
             <button type="button" class="btn btn--outline btn--sm" id="catalog-reset">Reset Pencarian</button>
           </div>
           <div class="catalog-grid" id="catalog-grid"></div>
