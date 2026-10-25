@@ -510,7 +510,7 @@ s { color: var(--muted); font-weight: 400; }
 }
 /* Grid katalog menyesuaikan lebar frame (2 kolom di ponsel, 3+ di lebih lebar) */
 @media (min-width: 520px) {
-  .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+  #catalog-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
 }
 /* Layar sangat sempit: rapatkan appbar */
 @media (max-width: 360px) {
