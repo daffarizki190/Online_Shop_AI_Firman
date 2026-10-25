@@ -257,9 +257,9 @@ let token = '';
   // Proteksi panel admin
   {
     const K = 'E2. API admin';
-    let x = await jget('/api/admin/overview');
+    let x = await jget('/api/admin');
     x.r.status === 403 ? ok(K, 'tanpa token → 403') : bad(K, 'proteksi admin', `status ${x.r.status}`);
-    x = await jget('/api/admin/overview', { headers: { authorization: 'Bearer ' + token } });
+    x = await jget('/api/admin', { headers: { authorization: 'Bearer ' + token } });
     x.r.status === 403 ? ok(K, 'token user biasa ditolak → 403') : bad(K, 'non-admin ditolak', `status ${x.r.status}`);
   }
 }

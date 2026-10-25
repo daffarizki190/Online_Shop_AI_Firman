@@ -1781,7 +1781,7 @@
     body.innerHTML = '<div class="empty-state" style="padding:32px 24px"><p class="muted-sm">Memuat data toko…</p></div>';
     let data;
     try {
-      data = await Cloud.call('/admin/overview');
+      data = await Cloud.call('/admin');
     } catch (e) {
       body.innerHTML = `
         <div class="empty-state">
