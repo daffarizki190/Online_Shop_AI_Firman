@@ -529,12 +529,15 @@ body { display: block; background: var(--surface); }
   #alamat-body, #fitting-body, #saved-body, #bantuan-body, #akun-body,
   #admin-body, #admin-pesanan-body, #admin-ulasan-body, #admin-pengguna-body,
   #pesanan-body, .login__body {
-    max-width: 760px; margin-left: auto; margin-right: auto;
+    max-width: 880px; margin-left: auto; margin-right: auto;
   }
-  .pdp-media, .thumbs, .search-zone, .chip-row, .sort-row, .steps-row { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .pdp-media, .thumbs, .search-zone, .chip-row, .sort-row, .steps-row { max-width: 880px; margin-left: auto; margin-right: auto; }
   .pdp-media { border-radius: 12px; overflow: hidden; }
-  .mirror-stage { max-width: 760px; margin: 0 auto; border-radius: 12px; }
-  .screen__cta { max-width: 760px; margin-left: auto; margin-right: auto; width: calc(100% - 0px); }
+  .mirror-stage { max-width: 880px; margin: 0 auto; border-radius: 12px; }
+  .screen__cta { max-width: 880px; margin-left: auto; margin-right: auto; width: calc(100% - 0px); }
+}
+@media (min-width: 1400px) {
+  #catalog-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 }
 /* Layar sangat sempit: rapatkan appbar */
 @media (max-width: 360px) {
