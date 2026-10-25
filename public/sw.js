@@ -1,7 +1,7 @@
 /* Aura Atelier — service worker: app shell offline.
  * Catatan: bundle Vite memakai nama ber-hash, jadi hanya dokumen inti yang
  * di-precache; aset lain di-cache runtime saat pertama kali diakses. */
-const CACHE = 'aura-atelier-v23';
+const CACHE = 'aura-atelier-v24';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/spec.html'];
 
 self.addEventListener('install', (e) => {
