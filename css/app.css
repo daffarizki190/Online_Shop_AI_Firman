@@ -533,6 +533,7 @@ body { display: block; background: var(--surface); }
   }
   .pdp-media, .thumbs, .search-zone, .chip-row, .sort-row, .steps-row { max-width: 880px; margin-left: auto; margin-right: auto; }
   .pdp-media { border-radius: 12px; overflow: hidden; }
+  .pdp-media img { max-height: 62vh; object-fit: cover; }
   .mirror-stage { max-width: 880px; margin: 0 auto; border-radius: 12px; }
   .screen__cta { max-width: 880px; margin-left: auto; margin-right: auto; width: calc(100% - 0px); }
 }

@@ -70,7 +70,7 @@ export default function MirrorScreen() {
       const sL = lmToCanvas(lm[11], canvas, video), sR = lmToCanvas(lm[12], canvas, video);
       shoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
       cx = (sL.x + sR.x) / 2;
-      topY = Math.min(sL.y, sR.y) - shoulderPx * 0.22;
+      topY = Math.min(sL.y, sR.y) - shoulderPx * 0.10;
     } else {
       shoulderPx = W * 0.26; cx = W / 2; topY = H * 0.24;
     }
@@ -78,7 +78,9 @@ export default function MirrorScreen() {
     const idx = p.sizes.findIndex((x) => x.size_label === mirrorSize);
     const idxM = p.sizes.findIndex((x) => x.size_label === 'M');
     const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
-    const gw = shoulderPx * 2.08 * sizeFactor, gh = gw * (1200 / 896);
+    // Proporsional: lebar baju ~1.6x lebar bahu (boxy), dibatasi agar proporsional di kamera
+    const gw = Math.min(shoulderPx * 1.62 * sizeFactor, W * 0.78);
+    const gh = Math.min(gw * (1200 / 896), H * 0.86);
 
     ctx.save();
     ctx.translate(cx - gw / 2, topY);
