@@ -1,7 +1,7 @@
-/* Aura Atelier — service worker: app shell offline.
- * Catatan: bundle Vite memakai nama ber-hash, jadi hanya dokumen inti yang
- * di-precache; aset lain di-cache runtime saat pertama kali diakses. */
-const CACHE = 'aura-atelier-v24';
+/* Aura Atelier — service worker v25: NETWORK-FIRST.
+ * Versi terbaru selalu dipakai (cache hanya fallback offline).
+ * Menutup kelas bug "deploy baru tidak muncul karena cache SW lama". */
+const CACHE = 'aura-atelier-v25';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/spec.html'];
 
 self.addEventListener('install', (e) => {
@@ -19,16 +19,16 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  // API & service worker tidak boleh di-cache (selalu ke server)
+  // API & SW sendiri tidak pernah di-cache
   if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return;
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).then((res) => {
+    fetch(e.request)
+      .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));
         return res;
-      });
-    }).catch(() => caches.match('/index.html'))
+      })
+      .catch(() => caches.match(e.request).then((c) => c || caches.match('/index.html')))
   );
 });
