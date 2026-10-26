@@ -63,12 +63,12 @@ export function TrackingScreen() {
     if (o.feedback) return;
     const orders = s.orders.map((x) => x.id === o.id ? { ...x, feedback: value } : x);
     localStorage.setItem(STORE.orders, JSON.stringify(orders));
-    set({ orders });
     const log = JSON.parse(localStorage.getItem(STORE.feedback) || '[]');
     o.items.forEach((i) => log.push({ order_id: o.id, sku_id: i.sku, size: i.size, ai_recommended: i.verified, feedback: value, at: new Date().toISOString() }));
     localStorage.setItem(STORE.feedback, JSON.stringify(log));
-    toast(value === 'perfect' ? 'Terima kasih! Masukan Anda membuat rekomendasi AI makin akurat.'
-      : 'Tercatat — tukar ukuran gratis segera kami proses. Terima kasih!');
+    set({ orders, results: {} });
+    toast(value === 'perfect' ? 'Terima kasih! AI berhasil dikalibrasi untuk rekomendasi berikutnya.'
+      : 'Tercatat — preferensi ukuran AI Anda telah diperbarui & tukar ukuran gratis segera diproses.');
   };
 
   return (

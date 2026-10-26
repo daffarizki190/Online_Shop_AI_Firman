@@ -160,7 +160,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const st = sRef.current;
     if (!st.profile) return null;
     if (!st.results[sku]) {
-      const r = recommend(st.profile, prod(sku));
+      const feedbackList = load(STORE.feedback, []);
+      const r = recommend(st.profile, prod(sku), feedbackList);
       setS((prev) => ({ ...prev, results: { ...prev.results, [sku]: r } }));
       return r;
     }

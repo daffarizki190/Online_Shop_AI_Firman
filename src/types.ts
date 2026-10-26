@@ -131,6 +131,15 @@ export interface FitProfile {
   updated_at?: string;
 }
 
+export interface FeedbackItem {
+  order_id?: string;
+  sku_id: string;
+  size: string;
+  ai_recommended?: boolean;
+  feedback: 'perfect' | 'too_small' | 'too_big';
+  at?: string;
+}
+
 export interface ZoneFit {
   ease: number;
   diff: number;
@@ -142,11 +151,26 @@ export interface ScoredSize {
   score: number;
   zones: { chest: ZoneFit; shoulder: ZoneFit; length: ZoneFit };
   garment: { chest_circ_cm: number; shoulder_cm: number; length_cm: number };
+  inStock?: boolean;
+  stockCount?: number;
+}
+
+export interface FitFeedbackBias {
+  chestBiasCm: number;
+  shoulderBiasCm: number;
+  confidenceDelta: number;
+  appliedCount: number;
+  summaryNote: string;
 }
 
 export interface FitResult {
   best: ScoredSize;
   alternative: ScoredSize;
+  bestInStock?: ScoredSize;
+  isBestOutOfStock?: boolean;
   ranked: ScoredSize[];
   confidence: number;
+  feedbackBias?: FitFeedbackBias;
+  isCalibratedFromFeedback?: boolean;
 }
+

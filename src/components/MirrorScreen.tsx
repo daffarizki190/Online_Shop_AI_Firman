@@ -27,6 +27,7 @@ export default function MirrorScreen() {
   const lastT = useRef(-1);
   const trackingRef = useRef(false);
   const onRef = useRef(false);
+  const smoothRef = useRef({ cx: 0, topY: 0, shoulderPx: 0, angle: 0, initialized: false });
   const [fallback, setFallback] = useState(false);
   const [hud, setHud] = useState({ status: 'Menyiapkan kamera…', shoulder: 'Bahu: —', fit: '', ok: false, warn: false });
 
@@ -43,6 +44,7 @@ export default function MirrorScreen() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     try { landmarkerRef.current?.close(); } catch { /* ignore */ }
     streamRef.current = null; landmarkerRef.current = null; lmRef.current = null; trackingRef.current = false;
+    smoothRef.current.initialized = false;
   };
 
   const lmToCanvas = (lm: any, canvas: HTMLCanvasElement, video: HTMLVideoElement) => {
@@ -64,31 +66,76 @@ export default function MirrorScreen() {
     const shape = new Path2D(MIRROR_SHAPES[SHAPE_BY_CAT[p.category] || 'tee']);
     const color = MIRROR_COLORS[p.variant] || '#2E2E33';
     const lm = lmRef.current;
-    const lmOk = lm && lm[11] && lm[12] && lm[11].visibility > 0.5 && lm[12].visibility > 0.5;
-    let cx: number, topY: number, shoulderPx: number;
+    const lmOk = lm && lm[11] && lm[12] && lm[11].visibility > 0.45 && lm[12].visibility > 0.45;
+    let cx: number, topY: number, shoulderPx: number, angle = 0;
+
     if (lmOk) {
       const sL = lmToCanvas(lm[11], canvas, video), sR = lmToCanvas(lm[12], canvas, video);
-      shoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
-      cx = (sL.x + sR.x) / 2;
-      topY = Math.min(sL.y, sR.y) - shoulderPx * 0.10;
+      const rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
+      const rawCx = (sL.x + sR.x) / 2;
+      const rawTopY = (sL.y + sR.y) / 2 - rawShoulderPx * 0.12;
+      const rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
+
+      // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting tidak goyang/jitter
+      const sm = smoothRef.current;
+      if (!sm.initialized) {
+        sm.cx = rawCx;
+        sm.topY = rawTopY;
+        sm.shoulderPx = rawShoulderPx;
+        sm.angle = rawAngle;
+        sm.initialized = true;
+      } else {
+        const alpha = 0.28;
+        sm.cx += (rawCx - sm.cx) * alpha;
+        sm.topY += (rawTopY - sm.topY) * alpha;
+        sm.shoulderPx += (rawShoulderPx - sm.shoulderPx) * alpha;
+        let diffA = rawAngle - sm.angle;
+        while (diffA < -Math.PI) diffA += Math.PI * 2;
+        while (diffA > Math.PI) diffA -= Math.PI * 2;
+        sm.angle += diffA * alpha;
+      }
+      cx = sm.cx;
+      topY = sm.topY;
+      shoulderPx = sm.shoulderPx;
+      angle = sm.angle;
     } else {
-      shoulderPx = W * 0.26; cx = W / 2; topY = H * 0.24;
+      smoothRef.current.initialized = false;
+      shoulderPx = W * 0.26;
+      cx = W / 2;
+      topY = H * 0.24;
+      angle = 0;
     }
 
     const idx = p.sizes.findIndex((x) => x.size_label === mirrorSize);
     const idxM = p.sizes.findIndex((x) => x.size_label === 'M');
     const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
-    // Proporsional: lebar baju ~1.6x lebar bahu (boxy), dibatasi agar proporsional di kamera
+    // Proporsional: lebar baju ~1.62x lebar bahu (boxy), dibatasi agar proporsional di kamera
     const gw = Math.min(shoulderPx * 1.62 * sizeFactor, W * 0.78);
     const gh = Math.min(gw * (1200 / 896), H * 0.86);
 
     ctx.save();
-    ctx.translate(cx - gw / 2, topY);
+    // Rotasi dinamis mengikuti kemiringan bahu
+    ctx.translate(cx, topY);
+    ctx.rotate(angle);
     ctx.scale(gw / 896, gh / 1200);
-    ctx.globalAlpha = 0.88; ctx.fillStyle = color; ctx.fill(shape);
-    ctx.globalAlpha = 1; ctx.lineWidth = 3.5 * (896 / gw); ctx.strokeStyle = 'rgba(18,18,18,0.35)'; ctx.stroke(shape);
-    ctx.beginPath(); ctx.moveTo(356, 318); ctx.lineTo(540, 318);
-    ctx.lineWidth = 2.5 * (896 / gw); ctx.strokeStyle = 'rgba(250,249,246,0.55)'; ctx.stroke();
+    // Titik pusat kerah pada shape SVG berada di (448, 300)
+    ctx.translate(-448, -300);
+
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = color;
+    ctx.fill(shape);
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3.5 * (896 / gw);
+    ctx.strokeStyle = 'rgba(18,18,18,0.35)';
+    ctx.stroke(shape);
+
+    ctx.beginPath();
+    ctx.moveTo(356, 318);
+    ctx.lineTo(540, 318);
+    ctx.lineWidth = 2.5 * (896 / gw);
+    ctx.strokeStyle = 'rgba(250,249,246,0.55)';
+    ctx.stroke();
     ctx.restore();
 
     const next: typeof hud = { ...hud, ok: false, warn: false };

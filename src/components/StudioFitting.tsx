@@ -207,6 +207,13 @@ export function FittingScreen() {
         </p>
         <span className="method-badge">◎ Kuesioner · {({ tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' } as Record<string, string>)[prof.fit_preference]} · {SHAPES.find((x) => x.id === prof.metrics.body_shape)?.label ?? '—'}</span>
 
+        {r.isCalibratedFromFeedback && r.feedbackBias?.summaryNote && (
+          <div className="proof" style={{ background: '#EBF4EE', borderColor: 'var(--ok-soft)' }}>
+            <span className="proof__check" style={{ color: 'var(--ok)' }}>✦</span>
+            <span><b>Model AI Terkalibrasi Aktif:</b> {r.feedbackBias.summaryNote}</span>
+          </div>
+        )}
+
         {isBest && (
           <div className="proof"><span className="proof__check">✓</span>
             <span><b>{proof}% pembeli</b> dengan TB {prof.metrics.height_cm} / BB {prof.metrics.weight_kg} kg memilih {r.best.size_label} &amp; tidak mengembalikannya. <span className="mono-muted">(data demo)</span></span>
@@ -237,11 +244,13 @@ export function FittingScreen() {
         <div className="size-compare">
           {p.sizes.map((sz) => {
             const sc = r.ranked.find((x) => x.size_label === sz.size_label)!;
+            const hasStock = inStock(p.sku_id, sz.size_label);
             return (
               <button key={sz.size_label} type="button" aria-pressed={sz.size_label === preview.size_label}
-                className={sz.size_label === r.best.size_label ? 'is-best' : ''}
+                className={`${sz.size_label === r.best.size_label ? 'is-best' : ''}${!hasStock ? ' is-oos' : ''}`}
                 onClick={() => set({ previewSize: sz.size_label })}>
-                <b>{sz.size_label}</b><small>{sc.score}%</small>
+                <b>{sz.size_label}</b>
+                <small>{sc.score}%{!hasStock ? ' · Habis' : ''}</small>
               </button>
             );
           })}

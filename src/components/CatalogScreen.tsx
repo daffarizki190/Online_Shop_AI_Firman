@@ -31,7 +31,10 @@ export default function CatalogScreen() {
   const matches = q ? CATALOG.filter((p) => searchable(p).includes(q)).slice(0, 5) : [];
   const badge = (p: Product) => {
     const r = s.profile ? ensureResult(p.sku_id) : null;
-    if (r) return <span className="prod-card__badge prod-card__badge--ai">AI: {r.best.size_label}</span>;
+    if (r) {
+      const label = r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label;
+      return <span className="prod-card__badge prod-card__badge--ai">AI: {label}</span>;
+    }
     if (p.compare_at_price > p.price) return <span className="prod-card__badge">Promo</span>;
     return null;
   };

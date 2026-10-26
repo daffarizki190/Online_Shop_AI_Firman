@@ -40,6 +40,42 @@
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
   /**
+   * Menganalisis riwayat feedback pesanan pengguna untuk pembelajaran adaptif.
+   */
+  function computeFeedbackBias(feedbackList = []) {
+    if (!feedbackList || !feedbackList.length) {
+      return { chestBiasCm: 0, shoulderBiasCm: 0, confidenceDelta: 0, appliedCount: 0, summaryNote: '' };
+    }
+    const recent = feedbackList.slice(-10);
+    let tooSmall = 0, tooBig = 0, perfect = 0;
+    for (const item of recent) {
+      if (item.feedback === 'too_small') tooSmall++;
+      else if (item.feedback === 'too_big') tooBig++;
+      else if (item.feedback === 'perfect') perfect++;
+    }
+    const netDiff = tooSmall - tooBig;
+    const chestBiasCm = clamp(netDiff * 1.5, -4.5, 4.5);
+    const shoulderBiasCm = clamp(netDiff * 0.75, -2.5, 2.5);
+    const confidenceDelta = clamp(perfect * 2 - (tooSmall + tooBig) * 1.5, -6, 8);
+
+    let summaryNote = '';
+    if (tooSmall > tooBig) {
+      summaryNote = `AI Terkalibrasi: preferensi disesuaikan +${chestBiasCm.toFixed(1)} cm dari feedback pesanan sebelumnya.`;
+    } else if (tooBig > tooSmall) {
+      summaryNote = `AI Terkalibrasi: preferensi disesuaikan ${chestBiasCm.toFixed(1)} cm dari feedback pesanan sebelumnya.`;
+    } else if (perfect > 0) {
+      summaryNote = `AI Terkalibrasi: ${perfect} pesanan terkonfirmasi pas sempurna.`;
+    }
+    return {
+      chestBiasCm: round1(chestBiasCm),
+      shoulderBiasCm: round1(shoulderBiasCm),
+      confidenceDelta: Math.round(confidenceDelta),
+      appliedCount: recent.length,
+      summaryNote,
+    };
+  }
+
+  /**
    * (1) Estimasi dimensi tubuh dari kuesioner.
    * @param {{gender:'male'|'female', height_cm:number, weight_kg:number, age:number, body_shape:string}} input
    */
@@ -48,15 +84,19 @@
     const adj = BODY_SHAPE_ADJUST[input.body_shape] || BODY_SHAPE_ADJUST.rectangle;
     const ageAdj = clamp((age - 30) * 0.15, -2, 4); // metabolisme: pinggang bertambah seiring usia
 
+    const bmi = w / ((h / 100) * (h / 100));
+    const bmiAdjChest = clamp((bmi - 22) * 0.45, -2.5, 3.5);
+    const bmiAdjWaist = clamp((bmi - 22) * 0.65, -3, 4.5);
+
     let chest, waist, hips, shoulder;
     if (gender === 'female') {
-      chest = 0.2 * h + 0.72 * w + 12;
-      waist = 0.85 * w + 0.1 * h + 3 + ageAdj;
+      chest = 0.2 * h + 0.72 * w + 12 + bmiAdjChest;
+      waist = 0.85 * w + 0.1 * h + 3 + ageAdj + bmiAdjWaist;
       hips = 0.65 * w + 0.33 * h + 4;
       shoulder = 0.21 * h + 0.1 * w; // lebar bahu dalam satuan ukur garmen, bukan tulang biakromial
     } else {
-      chest = 0.22 * h + 0.7 * w + 9;
-      waist = 0.9 * w + 0.12 * h - 2 + ageAdj;
+      chest = 0.22 * h + 0.7 * w + 9 + bmiAdjChest;
+      waist = 0.9 * w + 0.12 * h - 2 + ageAdj + bmiAdjWaist;
       hips = 0.55 * w + 0.32 * h + 3;
       shoulder = 0.21 * h + 0.09 * w;
     }
@@ -68,6 +108,8 @@
       estimated_waist_cm: round1(waist + adj.waist),
       estimated_hips_cm: round1(hips + adj.hips),
       estimated_shoulder_cm: round1(shoulder + adj.shoulder),
+      estimated_sleeve_cm: round1(0.34 * h),
+      estimated_torso_cm: round1(0.40 * h),
     };
   }
 
@@ -93,18 +135,20 @@
   }
 
   /** (3) Skor satu ukuran terhadap tubuh pengguna. */
-  function scoreSize(body, size, product, preference) {
+  function scoreSize(body, size, product, preference, bias) {
     const pref = FIT_PREFERENCE_EASE[preference] || FIT_PREFERENCE_EASE.regular;
     const g = calibrateGarment(size, product.fabric_specs);
     const cut = product.cut_ease || { chest: 0, shoulder: 0 }; // potongan boxy sudah memberi ruang ekstra
+    const bChest = (bias && bias.chestBiasCm) || 0;
+    const bShoulder = (bias && bias.shoulderBiasCm) || 0;
 
     // Dada: bila garmen < tubuh, stretch kain ikut diperhitungkan.
     const rawChestEase = g.chest_circ_cm - body.estimated_chest_cm;
     const chestEase = rawChestEase < 0 ? g.chest_circ_max_stretch_cm - body.estimated_chest_cm : rawChestEase;
-    const chestDiff = chestEase - (pref.chest + cut.chest);
+    const chestDiff = chestEase - (pref.chest + cut.chest + bChest);
 
     const shoulderEase = g.shoulder_cm - body.estimated_shoulder_cm;
-    const shoulderDiff = shoulderEase - (pref.shoulder + cut.shoulder);
+    const shoulderDiff = shoulderEase - (pref.shoulder + cut.shoulder + bShoulder);
 
     const idealLength = body.height_cm * pref.lengthRatio;
     const lengthDiff = g.length_cm - idealLength;
@@ -125,29 +169,52 @@
     }
     const score = clamp(100 * Math.exp(-penalty * 0.9), 0, 100);
 
-    return { size_label: size.size_label, score: Math.round(score), zones, garment: g };
+    const stockCount = (product.stock && product.stock[size.size_label]) ?? 0;
+    const inStock = stockCount > 0;
+
+    return { size_label: size.size_label, score: Math.round(score), zones, garment: g, inStock, stockCount };
   }
 
   /**
    * (4) Rekomendasi utama.
-   * @returns {{best, alternative, ranked, body, confidence}}
+   * @returns {{best, alternative, bestInStock, isBestOutOfStock, ranked, body, confidence, feedbackBias, isCalibratedFromFeedback}}
    */
-  function recommend(profile, product) {
+  function recommend(profile, product, feedbackList = []) {
     const body = profile.metrics && profile.metrics.estimated_chest_cm
       ? profile.metrics
       : estimateBody({ ...profile.metrics, gender: profile.gender, age: profile.age });
 
+    const bias = computeFeedbackBias(feedbackList);
+
     const ranked = product.sizes
-      .map((s) => scoreSize(body, s, product, profile.fit_preference))
+      .map((s) => scoreSize(body, s, product, profile.fit_preference, bias))
       .sort((a, b) => b.score - a.score);
 
     const best = ranked[0];
+    const alternative = ranked[1];
+
+    const inStockList = ranked.filter((x) => x.inStock);
+    const bestInStock = inStockList[0] || alternative;
+    const isBestOutOfStock = !best.inStock;
+
     // Metode kamera lebih presisi -> confidence tidak didiskon.
     const methodFactor = profile.input_method === 'camera_scan' ? 1 : 0.97;
-    const confidence = clamp(Math.round(best.score * methodFactor), 40, 99);
+    const baseConf = Math.round(best.score * methodFactor) + bias.confidenceDelta;
+    const confidence = clamp(baseConf, 40, 99);
 
-    return { best, alternative: ranked[1], ranked, body, confidence };
+    return {
+      best,
+      alternative,
+      bestInStock,
+      isBestOutOfStock,
+      ranked,
+      body,
+      confidence,
+      feedbackBias: bias,
+      isCalibratedFromFeedback: bias.appliedCount > 0,
+    };
   }
 
-  global.AuraSizeEngine = { estimateBody, calibrateGarment, scoreSize, recommend, FIT_PREFERENCE_EASE };
+  global.AuraSizeEngine = { estimateBody, calibrateGarment, scoreSize, recommend, computeFeedbackBias, FIT_PREFERENCE_EASE };
 })(typeof window !== 'undefined' ? window : globalThis);
+

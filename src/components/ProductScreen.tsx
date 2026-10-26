@@ -92,18 +92,35 @@ export default function ProductScreen() {
             {p.sizes.map((sz) => {
               const l = sz.size_label;
               const dis = !inStock(p.sku_id, l);
+              const isBest = best === l;
+              const isAltBest = r?.isBestOutOfStock && r?.bestInStock?.size_label === l;
               return (
                 <button key={l} type="button" className="size-chip" role="radio" aria-checked={s.selectedSize === l} disabled={dis}
                   onClick={() => set({ selectedSize: l })}>
-                  {l}{best === l && <span className="size-chip__ai">AI</span>}
+                  {l}
+                  {isBest && !dis && <span className="size-chip__ai">AI</span>}
+                  {isBest && dis && <span className="size-chip__ai" style={{ background: '#71716F' }}>AI Habis</span>}
+                  {isAltBest && !dis && <span className="size-chip__ai">AI Pas</span>}
                 </button>
               );
             })}
           </div>
           <p className="size-note" aria-live="polite">
-            {!s.selectedSize ? (best ? `AI merekomendasikan ${best} untuk profil Anda.` : 'Ragu ukuran? Coba Atelier Consultation di bawah.')
-              : best && s.selectedSize !== best ? `Perhatian: AI merekomendasikan ${best}. Ukuran ${s.selectedSize} kemungkinan ${p.sizes.findIndex((x) => x.size_label === s.selectedSize) < p.sizes.findIndex((x) => x.size_label === best) ? 'terlalu ketat' : 'terlalu longgar'}.`
-              : ((p.stock as Record<string, number>)[s.selectedSize] ?? 0) <= 5 ? `Sisa ${(p.stock as Record<string, number>)[s.selectedSize]} pcs untuk ukuran ${s.selectedSize}.` : `Ukuran ${s.selectedSize} tersedia.`}
+            {!s.selectedSize ? (
+              r ? (
+                r.isBestOutOfStock ? (
+                  <>Ukuran <b>{best}</b> (pilihan utama) sedang habis stok. AI menyarankan alternatif tersedia: <b>{r.bestInStock?.size_label}</b> ({r.bestInStock?.score}% cocok).</>
+                ) : (
+                  <>AI merekomendasikan <b>{best}</b> untuk profil Anda ({r.confidence}% cocok).{r.isCalibratedFromFeedback ? ' ✦ Terkalibrasi' : ''}</>
+                )
+              ) : 'Ragu ukuran? Coba Atelier Consultation di bawah.'
+            ) : best && s.selectedSize !== best ? (
+              `Perhatian: AI merekomendasikan ${best}. Ukuran ${s.selectedSize} kemungkinan ${p.sizes.findIndex((x) => x.size_label === s.selectedSize) < p.sizes.findIndex((x) => x.size_label === best) ? 'terlalu ketat' : 'terlalu longgar'}.`
+            ) : ((p.stock as Record<string, number>)[s.selectedSize] ?? 0) <= 5 ? (
+              `Sisa ${(p.stock as Record<string, number>)[s.selectedSize]} pcs untuk ukuran ${s.selectedSize}.`
+            ) : (
+              `Ukuran ${s.selectedSize} tersedia.`
+            )}
           </p>
 
           <div className="atelier-card">
@@ -121,8 +138,18 @@ export default function ProductScreen() {
             </>) : (<>
               <div className="atelier-card__row">
                 <span className="atelier-card__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10" /></svg></span>
-                <div><strong>Ukuran Anda: {r.best.size_label} · <span className="atelier-match">{r.confidence}% Cocok</span></strong>
-                  <p>Profil "{s.profile!.profile_name}" · {s.profile!.metrics.height_cm} cm / {s.profile!.metrics.weight_kg} kg</p></div>
+                <div>
+                  <strong>
+                    {r.isBestOutOfStock && r.bestInStock ? `Pilihan Tersedia: ${r.bestInStock.size_label}` : `Ukuran Anda: ${r.best.size_label}`}{' '}
+                    · <span className="atelier-match">{r.confidence}% Cocok</span>
+                  </strong>
+                  <p>Profil "{s.profile!.profile_name}" · {s.profile!.metrics.height_cm} cm / {s.profile!.metrics.weight_kg} kg</p>
+                  {r.isCalibratedFromFeedback && r.feedbackBias?.summaryNote && (
+                    <small style={{ display: 'block', color: 'var(--ok)', fontSize: '11px', marginTop: '3px' }}>
+                      ✓ {r.feedbackBias.summaryNote}
+                    </small>
+                  )}
+                </div>
               </div>
               <div className="atelier-card__row">
                 <button type="button" className="link-btn" onClick={() => goto('studio')}>Ubah profil</button>
