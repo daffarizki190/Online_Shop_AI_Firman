@@ -27,7 +27,7 @@ export default function MirrorScreen() {
   const lastT = useRef(-1);
   const trackingRef = useRef(false);
   const onRef = useRef(false);
-  const smoothRef = useRef({ cx: 0, topY: 0, shoulderPx: 0, angle: 0, initialized: false });
+  const smoothRef = useRef({ cx: 0, cy: 0, shoulderPx: 0, angle: 0, initialized: false });
   const [fallback, setFallback] = useState(false);
   const [hud, setHud] = useState({ status: 'Menyiapkan kamera…', shoulder: 'Bahu: —', fit: '', ok: false, warn: false });
 
@@ -67,27 +67,63 @@ export default function MirrorScreen() {
     const color = MIRROR_COLORS[p.variant] || '#2E2E33';
     const lm = lmRef.current;
     const lmOk = lm && lm[11] && lm[12] && lm[11].visibility > 0.45 && lm[12].visibility > 0.45;
-    let cx: number, topY: number, shoulderPx: number, angle = 0;
+    let cx: number, cy: number, shoulderPx: number, angle = 0;
 
     if (lmOk) {
       const sL = lmToCanvas(lm[11], canvas, video), sR = lmToCanvas(lm[12], canvas, video);
-      const rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
-      const rawCx = (sL.x + sR.x) / 2;
-      const rawTopY = (sL.y + sR.y) / 2 - rawShoulderPx * 0.12;
-      const rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
+      let rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
+      let rawCx = (sL.x + sR.x) / 2;
+      let rawCy = (sL.y + sR.y) / 2;
+      let rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
 
-      // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting tidak goyang/jitter
+      // Cek titik wajah untuk validasi anatomis & mencegah landmark bahu drift ke dada/perut saat close-up
+      const hasNose = lm[0] && lm[0].visibility > 0.4;
+      const hasMouth = lm[9] && lm[10] && lm[9].visibility > 0.35 && lm[10].visibility > 0.35;
+      const hasEars = lm[7] && lm[8] && lm[7].visibility > 0.35 && lm[8].visibility > 0.35;
+
+      if (hasNose) {
+        const nose = lmToCanvas(lm[0], canvas, video);
+        let faceRefY = nose.y;
+        let faceUnit = Math.max(24, rawShoulderPx * 0.32);
+
+        if (hasMouth) {
+          const mouthL = lmToCanvas(lm[9], canvas, video);
+          const mouthR = lmToCanvas(lm[10], canvas, video);
+          const mouthY = (mouthL.y + mouthR.y) / 2;
+          faceRefY = mouthY;
+          faceUnit = Math.max(20, mouthY - nose.y);
+        }
+
+        // Anatomis: garis bahu normal berada 1.1x - 2.2x jarak hidung-mulut di bawah mulut.
+        // Jika rawCy melebihi batas ini (misal detector drift ke dada/perut pada close-up selfie),
+        // kunci garis bahu di batas anatomis nyata agar pakaian tidak melorot ke perut.
+        const maxAllowedShoulderY = faceRefY + faceUnit * 2.2;
+        const minAllowedShoulderY = faceRefY + faceUnit * 0.9;
+        rawCy = Math.max(minAllowedShoulderY, Math.min(rawCy, maxAllowedShoulderY));
+
+        // Lebar bahu manusia proporsional terhadap jarak kedua telinga (ear-to-ear)
+        if (hasEars) {
+          const earL = lmToCanvas(lm[7], canvas, video);
+          const earR = lmToCanvas(lm[8], canvas, video);
+          const earDist = Math.hypot(earR.x - earL.x, earR.y - earL.y);
+          if (earDist > 20 && rawShoulderPx < earDist * 2.1) {
+            rawShoulderPx = earDist * 2.35;
+          }
+        }
+      }
+
+      // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting stabil & tidak jitter
       const sm = smoothRef.current;
       if (!sm.initialized) {
         sm.cx = rawCx;
-        sm.topY = rawTopY;
+        sm.cy = rawCy;
         sm.shoulderPx = rawShoulderPx;
         sm.angle = rawAngle;
         sm.initialized = true;
       } else {
         const alpha = 0.28;
         sm.cx += (rawCx - sm.cx) * alpha;
-        sm.topY += (rawTopY - sm.topY) * alpha;
+        sm.cy += (rawCy - sm.cy) * alpha;
         sm.shoulderPx += (rawShoulderPx - sm.shoulderPx) * alpha;
         let diffA = rawAngle - sm.angle;
         while (diffA < -Math.PI) diffA += Math.PI * 2;
@@ -95,46 +131,49 @@ export default function MirrorScreen() {
         sm.angle += diffA * alpha;
       }
       cx = sm.cx;
-      topY = sm.topY;
+      cy = sm.cy;
       shoulderPx = sm.shoulderPx;
       angle = sm.angle;
     } else {
       smoothRef.current.initialized = false;
-      shoulderPx = W * 0.26;
+      shoulderPx = W * 0.46;
       cx = W / 2;
-      topY = H * 0.24;
+      cy = H * 0.38;
       angle = 0;
     }
 
     const idx = p.sizes.findIndex((x) => x.size_label === mirrorSize);
     const idxM = p.sizes.findIndex((x) => x.size_label === 'M');
     const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
-    // Proporsional: lebar baju ~1.62x lebar bahu (boxy), dibatasi agar proporsional di kamera
-    const gw = Math.min(shoulderPx * 1.62 * sizeFactor, W * 0.78);
-    const gh = Math.min(gw * (1200 / 896), H * 0.86);
+
+    // Lebar bahu garmen: ~1.14x lebar bahu tubuh untuk potongan drop-shoulder boxy yang pas
+    const targetShoulderPx = Math.min(shoulderPx * 1.14 * sizeFactor, W * 0.96);
+    // Skala SVG: 360 unit adalah jarak bahu kiri ke kanan pada MIRROR_SHAPES (X: 268 s.d. 628)
+    const scale = targetShoulderPx / 360;
 
     ctx.save();
-    // Rotasi dinamis mengikuti kemiringan bahu
-    ctx.translate(cx, topY);
+    // Anchor tepat di titik tengah garis bahu (cx, cy)
+    ctx.translate(cx, cy);
     ctx.rotate(angle);
-    ctx.scale(gw / 896, gh / 1200);
-    // Titik pusat kerah pada shape SVG berada di (448, 300)
-    ctx.translate(-448, -300);
+    ctx.scale(scale, scale);
+    // Titik tengah garis bahu pada shape SVG berada di (448, 336)
+    ctx.translate(-448, -336);
 
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.90;
     ctx.fillStyle = color;
     ctx.fill(shape);
 
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 3.5 * (896 / gw);
-    ctx.strokeStyle = 'rgba(18,18,18,0.35)';
+    ctx.lineWidth = 3.2 / scale;
+    ctx.strokeStyle = 'rgba(18,18,18,0.38)';
     ctx.stroke(shape);
 
+    // Garis ribbing / kerah melengkung di sekeliling leher
     ctx.beginPath();
-    ctx.moveTo(356, 318);
-    ctx.lineTo(540, 318);
-    ctx.lineWidth = 2.5 * (896 / gw);
-    ctx.strokeStyle = 'rgba(250,249,246,0.55)';
+    ctx.moveTo(356, 314);
+    ctx.quadraticCurveTo(448, 356, 540, 314);
+    ctx.lineWidth = 2.4 / scale;
+    ctx.strokeStyle = 'rgba(250,249,246,0.58)';
     ctx.stroke();
     ctx.restore();
 
@@ -145,6 +184,11 @@ export default function MirrorScreen() {
       let bodyPx = 0;
       if (lm[28] && lm[28].visibility > 0.4) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
       else if (lm[24]) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[24], canvas, video).y) * 1.95;
+      else if (lm[0] && lm[9]) {
+        const mouthY = (lmToCanvas(lm[9], canvas, video).y + lmToCanvas(lm[10], canvas, video).y) / 2;
+        const headH = Math.abs(mouthY - lmToCanvas(lm[0], canvas, video).y) * 3.5;
+        if (headH > 50) bodyPx = headH * 7.5;
+      }
       if (bodyPx > 0) {
         const shoulderCm = shoulderPx! / (bodyPx / heightCm);
         const sz = p.sizes.find((x) => x.size_label === mirrorSize);
@@ -186,7 +230,10 @@ export default function MirrorScreen() {
     onRef.current = true;
     setFallback(false);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 } }, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 }, aspectRatio: { ideal: 0.75 } },
+        audio: false,
+      });
       streamRef.current = stream;
       const v = videoRef.current!;
       v.srcObject = stream;
