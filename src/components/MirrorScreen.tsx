@@ -4,9 +4,9 @@ import { useApp, inStock } from '../store';
 import { Subbar } from '../ui';
 
 const MIRROR_SHAPES: Record<string, string> = {
-  tee: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 900 Q448 930 574 900 L574 470 L596 512 L680 470 L628 336 L540 300 Q448 372 356 300 Z',
-  hoodie: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 930 Q448 960 574 930 L574 470 L596 512 L680 470 L628 336 L540 300 Q448 396 356 300 Z',
-  shirt: 'M356 300 L268 336 L216 470 L300 512 L322 470 L322 940 Q448 966 574 940 L574 470 L596 512 L680 470 L628 336 L540 300 L470 330 L426 300 Z',
+  tee: 'M 360 330 Q 448 385 536 330 L 646 360 L 726 505 L 646 540 L 614 480 L 602 920 Q 448 945 294 920 L 282 480 L 250 540 L 170 505 L 250 360 Z',
+  hoodie: 'M 350 326 Q 448 376 546 326 L 646 360 L 730 525 L 650 558 L 616 490 L 602 935 Q 448 958 294 935 L 280 490 L 246 558 L 166 525 L 250 360 Z',
+  shirt: 'M 360 328 L 416 352 L 448 390 L 480 352 L 536 328 L 646 360 L 726 510 L 646 545 L 614 485 L 602 930 Q 448 955 294 930 L 282 485 L 250 545 L 170 510 L 250 360 Z',
 };
 const SHAPE_BY_CAT: Record<string, string> = { 'T-Shirt': 'tee', 'Longsleeve': 'tee', 'Hoodie': 'hoodie', 'Kemeja': 'shirt' };
 const MIRROR_COLORS: Record<string, string> = {
@@ -70,49 +70,15 @@ export default function MirrorScreen() {
     let cx: number, cy: number, shoulderPx: number, angle = 0;
 
     if (lmOk) {
-      const sL = lmToCanvas(lm[11], canvas, video), sR = lmToCanvas(lm[12], canvas, video);
-      let rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
-      let rawCx = (sL.x + sR.x) / 2;
-      let rawCy = (sL.y + sR.y) / 2;
-      let rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
+      // Patokan murni kedua sisi bahu: landmark 11 (bahu kiri) dan landmark 12 (bahu kanan)
+      const sL = lmToCanvas(lm[11], canvas, video);
+      const sR = lmToCanvas(lm[12], canvas, video);
+      const rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
+      const rawCx = (sL.x + sR.x) / 2;
+      const rawCy = (sL.y + sR.y) / 2;
+      const rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
 
-      // Cek titik wajah untuk validasi anatomis & mencegah landmark bahu drift ke dada/perut saat close-up
-      const hasNose = lm[0] && lm[0].visibility > 0.4;
-      const hasMouth = lm[9] && lm[10] && lm[9].visibility > 0.35 && lm[10].visibility > 0.35;
-      const hasEars = lm[7] && lm[8] && lm[7].visibility > 0.35 && lm[8].visibility > 0.35;
-
-      if (hasNose) {
-        const nose = lmToCanvas(lm[0], canvas, video);
-        let faceRefY = nose.y;
-        let faceUnit = Math.max(24, rawShoulderPx * 0.32);
-
-        if (hasMouth) {
-          const mouthL = lmToCanvas(lm[9], canvas, video);
-          const mouthR = lmToCanvas(lm[10], canvas, video);
-          const mouthY = (mouthL.y + mouthR.y) / 2;
-          faceRefY = mouthY;
-          faceUnit = Math.max(20, mouthY - nose.y);
-        }
-
-        // Anatomis: garis bahu normal berada 1.1x - 2.2x jarak hidung-mulut di bawah mulut.
-        // Jika rawCy melebihi batas ini (misal detector drift ke dada/perut pada close-up selfie),
-        // kunci garis bahu di batas anatomis nyata agar pakaian tidak melorot ke perut.
-        const maxAllowedShoulderY = faceRefY + faceUnit * 2.2;
-        const minAllowedShoulderY = faceRefY + faceUnit * 0.9;
-        rawCy = Math.max(minAllowedShoulderY, Math.min(rawCy, maxAllowedShoulderY));
-
-        // Lebar bahu manusia proporsional terhadap jarak kedua telinga (ear-to-ear)
-        if (hasEars) {
-          const earL = lmToCanvas(lm[7], canvas, video);
-          const earR = lmToCanvas(lm[8], canvas, video);
-          const earDist = Math.hypot(earR.x - earL.x, earR.y - earL.y);
-          if (earDist > 20 && rawShoulderPx < earDist * 2.1) {
-            rawShoulderPx = earDist * 2.35;
-          }
-        }
-      }
-
-      // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting stabil & tidak jitter
+      // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting stabil & tidak jitter saat bergerak
       const sm = smoothRef.current;
       if (!sm.initialized) {
         sm.cx = rawCx;
@@ -121,7 +87,7 @@ export default function MirrorScreen() {
         sm.angle = rawAngle;
         sm.initialized = true;
       } else {
-        const alpha = 0.28;
+        const alpha = 0.32;
         sm.cx += (rawCx - sm.cx) * alpha;
         sm.cy += (rawCy - sm.cy) * alpha;
         sm.shoulderPx += (rawShoulderPx - sm.shoulderPx) * alpha;
@@ -138,42 +104,42 @@ export default function MirrorScreen() {
       smoothRef.current.initialized = false;
       shoulderPx = W * 0.46;
       cx = W / 2;
-      cy = H * 0.38;
+      cy = H * 0.40;
       angle = 0;
     }
 
     const idx = p.sizes.findIndex((x) => x.size_label === mirrorSize);
     const idxM = p.sizes.findIndex((x) => x.size_label === 'M');
-    const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
+    const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.05;
 
-    // Lebar bahu garmen: ~1.14x lebar bahu tubuh untuk potongan drop-shoulder boxy yang pas
-    const targetShoulderPx = Math.min(shoulderPx * 1.14 * sizeFactor, W * 0.96);
-    // Skala SVG: 360 unit adalah jarak bahu kiri ke kanan pada MIRROR_SHAPES (X: 268 s.d. 628)
-    const scale = targetShoulderPx / 360;
+    // Patokan langsung dari kedua sisi bahu (sL dan sR):
+    // Lebar bahu di SVG adalah 396 unit (X: 250 ke 646), disesuaikan dengan drop shoulder boxy (1.08x)
+    const targetShoulderPx = Math.min(shoulderPx * 1.08 * sizeFactor, W * 0.98);
+    const scale = targetShoulderPx / 396;
 
     ctx.save();
-    // Anchor tepat di titik tengah garis bahu (cx, cy)
+    // Anchor persis di garis tengah kedua bahu (sL dan sR)
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     ctx.scale(scale, scale);
-    // Titik tengah garis bahu pada shape SVG berada di (448, 336)
-    ctx.translate(-448, -336);
+    // Titik tengah garis bahu pada shape SVG berada di (448, 360)
+    ctx.translate(-448, -360);
 
     ctx.globalAlpha = 0.90;
     ctx.fillStyle = color;
     ctx.fill(shape);
 
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 3.2 / scale;
+    ctx.lineWidth = 3.0 / scale;
     ctx.strokeStyle = 'rgba(18,18,18,0.38)';
     ctx.stroke(shape);
 
-    // Garis ribbing / kerah melengkung di sekeliling leher
+    // Garis ribbing kerah melengkung halus mengikuti lekukan leher
     ctx.beginPath();
-    ctx.moveTo(356, 314);
-    ctx.quadraticCurveTo(448, 356, 540, 314);
+    ctx.moveTo(360, 330);
+    ctx.quadraticCurveTo(448, 385, 536, 330);
     ctx.lineWidth = 2.4 / scale;
-    ctx.strokeStyle = 'rgba(250,249,246,0.58)';
+    ctx.strokeStyle = 'rgba(250,249,246,0.55)';
     ctx.stroke();
     ctx.restore();
 
