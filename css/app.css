@@ -853,15 +853,15 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
    Cermin AI (virtual try-on via kamera)
    ============================================================ */
 .mirror-stage {
-  position: relative; width: 100%; aspect-ratio: 3 / 4;
+  position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58dvh;
   background: #141414; overflow: hidden; border-bottom: 1px solid var(--line);
 }
 .mirror-stage video {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; transform: scaleX(-1); /* efek cermin */
 }
-.mirror-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.mirror-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.mirror-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.mirror-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; z-index: 2; }
 .hud-chip {
   background: rgba(18, 18, 18, 0.74); color: #FAF9F6;
   font: 600 11px var(--font-ui); padding: 6px 10px; border-radius: 6px;
@@ -870,6 +870,33 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .hud-chip--dim { background: rgba(18, 18, 18, 0.5); color: #D9D7D2; font-weight: 500; }
 .hud-chip--ok { background: rgba(47, 107, 79, 0.9); }
 .hud-chip--warn { background: rgba(184, 74, 40, 0.92); }
+.mirror-dock {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3;
+  background: rgba(18, 18, 18, 0.72); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px;
+  padding: 7px 9px; color: #FAF9F6; display: flex; flex-direction: column; gap: 6px;
+}
+.mirror-dock__top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.mirror-dock__skin { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: #EBE8E0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mirror-dock__skin i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.65); flex: none; }
+.mirror-dock__skin b { color: #7DD8A8; font-weight: 600; }
+.mirror-dock__sizes { display: inline-flex; gap: 4px; flex: none; }
+.mirror-dock__size {
+  min-width: 26px; height: 23px; padding: 0 6px; border-radius: 5px;
+  font: 600 10.5px var(--font-mono); color: #FAF9F6;
+  background: rgba(255, 255, 255, 0.12); border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.mirror-dock__size.is-active { background: #FAF9F6; color: #121212; border-color: #FAF9F6; }
+.mirror-dock__colors { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding-bottom: 1px; }
+.mirror-dock__colors::-webkit-scrollbar { display: none; }
+.mirror-dock__color {
+  display: inline-flex; align-items: center; gap: 4px; flex: none;
+  padding: 3px 7px; border-radius: 99px; font-size: 10px; font-weight: 600;
+  color: #E5E2DA; background: rgba(255, 255, 255, 0.10); border: 1px solid rgba(255, 255, 255, 0.18);
+  white-space: nowrap;
+}
+.mirror-dock__color i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.6); }
+.mirror-dock__color.is-active { background: #FAF9F6; color: #121212; border-color: #FAF9F6; }
 #mirror-fallback { padding: 40px 24px; }
 
 /* ---- CTA "Coba Dulu" menonjol di setiap PDP ---- */

@@ -6,10 +6,10 @@ import type { SkinToneId } from '../types';
 import { Subbar } from '../ui';
 
 const MIRROR_SHAPES: Record<string, string> = {
-  tee: 'M 360 330 Q 448 385 536 330 L 646 360 L 726 505 L 646 540 L 614 480 L 602 920 Q 448 945 294 920 L 282 480 L 250 540 L 170 505 L 250 360 Z',
-  longsleeve: 'M 360 330 Q 448 385 536 330 L 646 360 L 774 845 L 702 870 L 614 485 L 602 920 Q 448 945 294 920 L 282 485 L 194 870 L 122 845 L 250 360 Z',
-  hoodie: 'M 350 326 Q 448 376 546 326 L 646 360 L 730 525 L 650 558 L 616 490 L 602 935 Q 448 958 294 935 L 280 490 L 246 558 L 166 525 L 250 360 Z',
-  shirt: 'M 360 328 L 416 352 L 448 390 L 480 352 L 536 328 L 646 360 L 726 510 L 646 545 L 614 485 L 602 930 Q 448 955 294 930 L 282 485 L 250 545 L 170 510 L 250 360 Z',
+  tee: 'M 355 316 Q 448 374 541 316 C 585 322 632 334 668 352 L 758 498 L 668 544 L 622 478 L 608 930 Q 448 955 288 930 L 274 478 L 228 544 L 138 498 L 228 352 C 264 334 311 322 355 316 Z',
+  longsleeve: 'M 355 316 Q 448 374 541 316 C 585 322 632 334 668 352 L 786 845 L 708 872 L 620 482 L 608 930 Q 448 955 288 930 L 276 482 L 188 872 L 110 845 L 228 352 C 264 334 311 322 355 316 Z',
+  hoodie: 'M 346 312 Q 448 368 550 312 C 594 320 638 334 674 354 L 764 522 L 672 562 L 624 488 L 610 940 Q 448 965 286 940 L 272 488 L 224 562 L 132 522 L 222 354 C 258 334 302 320 346 312 Z',
+  shirt: 'M 355 314 L 414 344 L 448 386 L 482 344 L 541 314 C 585 320 632 334 668 352 L 758 504 L 668 548 L 622 482 L 608 935 Q 448 960 288 935 L 274 482 L 228 548 L 138 504 L 228 352 C 264 334 311 320 355 314 Z',
 };
 const SHAPE_BY_CAT: Record<string, string> = { 'T-Shirt': 'tee', 'Longsleeve': 'longsleeve', 'Hoodie': 'hoodie', 'Kemeja': 'shirt' };
 const MIRROR_COLORS: Record<string, string> = {
@@ -136,37 +136,126 @@ export default function MirrorScreen() {
 
     const idx = p.sizes.findIndex((x) => x.size_label === mirrorSize);
     const idxM = p.sizes.findIndex((x) => x.size_label === 'M');
-    const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.05;
+    const sizeFactor = 1 + ((idx < 0 ? 1 : idx) - (idxM < 0 ? 1 : idxM)) * 0.055;
 
-    // Patokan langsung dari kedua sisi bahu (sL dan sR):
-    // Lebar bahu di SVG adalah 396 unit (X: 250 ke 646), disesuaikan dengan drop shoulder boxy (1.08x)
-    const targetShoulderPx = Math.min(shoulderPx * 1.08 * sizeFactor, W * 0.98);
-    const scale = targetShoulderPx / 396;
+    // Patokan anatomi: lm[11] & lm[12] adalah pusat sendi glenohumeral (di bagian dalam bahu).
+    // Untuk menutup bahu luar (deltoid) & lengan baju asli secara utuh, rentang bahu efektif = 1.28x jarak antar-sendi.
+    const targetShoulderPx = shoulderPx * 1.28 * sizeFactor;
+    const scale = targetShoulderPx / 440;
 
     ctx.save();
-    // Anchor persis di garis tengah kedua bahu (sL dan sR)
+    // Anchor di titik tengah sendi bahu (cx, cy) lalu diangkat ke puncak trapezius/pangkal leher (-392 pada ruang SVG)
     ctx.translate(cx, cy);
     ctx.rotate(angle);
     ctx.scale(scale, scale);
-    // Titik tengah garis bahu pada shape SVG berada di (448, 360)
-    ctx.translate(-448, -360);
+    ctx.translate(-448, -392);
 
-    ctx.globalAlpha = 0.90;
+    // 1. Bayangan belakang kerah (inner back-neck depth) agar tampak membungkus leher secara 3D
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(355, 316);
+    ctx.quadraticCurveTo(448, 336, 541, 316);
+    ctx.quadraticCurveTo(448, 382, 355, 316);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(10, 10, 12, 0.82)';
+    ctx.fill();
+    ctx.restore();
+
+    // 2. Base kain opasitas tinggi (0.985) agar logo/warna baju asli di bawahnya tidak tembus (anti ghosting)
+    ctx.save();
+    ctx.globalAlpha = 0.985;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.32)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 6;
     ctx.fillStyle = color;
     ctx.fill(shape);
+    ctx.restore();
 
+    // 3. Pencahayaan 3D & Drape Kain (klip di dalam bentuk pakaian)
+    ctx.save();
+    ctx.clip(shape);
+
+    // Pencahayaan dada silindris (terang lembut di dada atas, bayangan halus di tepi samping tubuh)
+    const torsoGrad = ctx.createLinearGradient(260, 340, 636, 340);
+    torsoGrad.addColorStop(0, 'rgba(0, 0, 0, 0.28)');
+    torsoGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.06)');
+    torsoGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.11)');
+    torsoGrad.addColorStop(0.78, 'rgba(255, 255, 255, 0.05)');
+    torsoGrad.addColorStop(1, 'rgba(0, 0, 0, 0.28)');
+    ctx.fillStyle = torsoGrad;
+    ctx.fillRect(100, 300, 700, 680);
+
+    // Gradasi vertikal dari bahu ke bawah hem
+    const vertGrad = ctx.createLinearGradient(448, 310, 448, 950);
+    vertGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+    vertGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0)');
+    vertGrad.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
+    ctx.fillStyle = vertGrad;
+    ctx.fillRect(100, 300, 700, 680);
+
+    // Lipatan natural (drape folds) di sekitar ketiak & dada samping
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(274, 478);
+    ctx.quadraticCurveTo(302, 560, 296, 670);
+    ctx.moveTo(622, 478);
+    ctx.quadraticCurveTo(594, 560, 600, 670);
+    ctx.stroke();
+
+    // Jahitan drop-shoulder (seam bahu kiri & kanan)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(232, 350);
+    ctx.quadraticCurveTo(258, 415, 274, 478);
+    ctx.moveTo(664, 350);
+    ctx.quadraticCurveTo(638, 415, 622, 478);
+    ctx.stroke();
+
+    ctx.restore();
+
+    // 4. Outline siluet pakaian
     ctx.globalAlpha = 1;
-    ctx.lineWidth = 3.0 / scale;
-    ctx.strokeStyle = 'rgba(18,18,18,0.38)';
+    ctx.lineWidth = 2.6 / scale;
+    ctx.strokeStyle = 'rgba(18, 18, 18, 0.45)';
     ctx.stroke(shape);
 
-    // Garis ribbing kerah melengkung halus mengikuti lekukan leher
+    // 5. Kerah Crewneck Ribbed 3D (tebal 2.2 cm dengan jahitan ganda / coverstitch)
+    ctx.save();
     ctx.beginPath();
-    ctx.moveTo(360, 330);
-    ctx.quadraticCurveTo(448, 385, 536, 330);
-    ctx.lineWidth = 2.4 / scale;
-    ctx.strokeStyle = 'rgba(250,249,246,0.55)';
+    ctx.moveTo(352, 317);
+    ctx.quadraticCurveTo(448, 378, 544, 317);
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = color;
     ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(352, 317);
+    ctx.quadraticCurveTo(448, 378, 544, 317);
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.20)';
+    ctx.stroke();
+
+    // Garis jahitan atas & bawah kerah rib
+    ctx.beginPath();
+    ctx.moveTo(355, 313);
+    ctx.quadraticCurveTo(448, 372, 541, 313);
+    ctx.lineWidth = 1.8 / scale;
+    ctx.strokeStyle = 'rgba(250, 249, 246, 0.38)';
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(349, 323);
+    ctx.quadraticCurveTo(448, 386, 547, 323);
+    ctx.lineWidth = 1.6 / scale;
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.38)';
+    ctx.stroke();
+    ctx.restore();
+
     ctx.restore();
 
     const next: typeof hud = { ...hudRef.current, ok: false, warn: false };
@@ -211,34 +300,76 @@ export default function MirrorScreen() {
         } catch { /* abaikan bila canvas tainted */ }
       }
 
-      const heightCm = s.profile?.metrics.height_cm || 170;
-      let bodyPx = 0;
-      if (lm[28] && lm[28].visibility > 0.45) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
-      else if (lm[24] && lm[24].visibility > 0.45) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[24], canvas, video).y) * 1.95;
-      else if (lm[0] && lm[9] && lm[10]) {
-        const mouthY = (lmToCanvas(lm[9], canvas, video).y + lmToCanvas(lm[10], canvas, video).y) / 2;
-        const headH = Math.abs(mouthY - lmToCanvas(lm[0], canvas, video).y) * 3.5;
-        if (headH > 40) bodyPx = headH * 7.5;
+      // Kalibrasi Lebar Bahu Multi-Referensi (Akurat untuk Close-Up Selfie maupun Full-Body)
+      // Catatan anatomi: lm[11]-lm[12] adalah pusat sendi glenohumeral dalam; lebar bahu jahitan (acromion-deltoid) = ~1.34x jarak sendi.
+      const heightCm = Number(s.profile?.metrics.height_cm) || 170;
+      const profileShoulderCm = Number((s.profile?.metrics as any)?.shoulder_cm) || (heightCm * 0.264);
+      const estimates: number[] = [];
+
+      // Referensi 1: Lebar kranial antar-telinga (lm[7] - lm[8]) -> konversi ke lebar bahu jahitan (faktor 24.1x termasuk koreksi perspektif selfie)
+      if (lm[7] && lm[8] && (lm[7].visibility ?? 1) > 0.35 && (lm[8].visibility ?? 1) > 0.35) {
+        const eL = lmToCanvas(lm[7], canvas, video);
+        const eR = lmToCanvas(lm[8], canvas, video);
+        const earDistPx = Math.hypot(eR.x - eL.x, eR.y - eL.y);
+        if (earDistPx > 18) {
+          estimates.push((shoulderPx / earDistPx) * 24.1 * (heightCm / 170));
+        }
       }
-      if (bodyPx > 0) {
-        const rawShoulderCm = shoulderPx! / (bodyPx / heightCm);
-        const shoulderCm = Math.max(34, Math.min(58, rawShoulderCm));
-        measuredShoulderRef.current = Math.round(shoulderCm * 10) / 10;
-        const sz = p.sizes.find((x) => x.size_label === mirrorSize);
-        const eff = (sz?.shoulder_width_cm || 46) * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100);
-        const diff = eff - shoulderCm;
-        next.shoulder = `Bahu Anda ±${Math.round(shoulderCm)} cm`;
-        if (diff >= -2.5 && diff <= 3.5) { next.fit = `Size ${mirrorSize} ✓ Pas di bahu`; next.ok = true; }
-        else if (diff < -2.5) { next.fit = `Size ${mirrorSize} agak ketat`; next.warn = true; }
-        else next.fit = `Size ${mirrorSize} agak longgar`;
-        const sug = r
-          ? { l: r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label }
-          : p.sizes
-              .filter((x) => inStock(p.sku_id, x.size_label))
-              .map((x) => ({ l: x.size_label, eff: x.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
-              .sort((a, b) => Math.abs(a.eff - shoulderCm - 2) - Math.abs(b.eff - shoulderCm - 2))[0];
-        if (sug && sug.l !== mirrorSize) next.fit += ` → AI: ${sug.l}`;
+
+      // Referensi 2: Jarak mata-ke-mulut (lm[2,5] ke lm[9,10]) -> stabil saat close-up (faktor 9.45x ke lebar bahu jahitan)
+      if (lm[2] && lm[5] && lm[9] && lm[10]) {
+        const eyeL = lmToCanvas(lm[2], canvas, video);
+        const eyeR = lmToCanvas(lm[5], canvas, video);
+        const mouthL = lmToCanvas(lm[9], canvas, video);
+        const mouthR = lmToCanvas(lm[10], canvas, video);
+        const eyeMid = { x: (eyeL.x + eyeR.x) / 2, y: (eyeL.y + eyeR.y) / 2 };
+        const mouthMid = { x: (mouthL.x + mouthR.x) / 2, y: (mouthL.y + mouthR.y) / 2 };
+        const eyeToMouthPx = Math.hypot(mouthMid.x - eyeMid.x, mouthMid.y - eyeMid.y);
+        if (eyeToMouthPx > 12) {
+          estimates.push((shoulderPx / eyeToMouthPx) * 9.45 * (heightCm / 170));
+        }
       }
+
+      // Referensi 3: Torso / Full-body bila berdiri agak jauh (pinggul lm[24] atau pergelangan kaki lm[28] terlihat)
+      if (lm[28] && lm[28].visibility > 0.5) {
+        const bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
+        if (bodyPx > shoulderPx * 2.2) estimates.push(((shoulderPx * 1.32) / bodyPx) * (heightCm * 0.90));
+      } else if (lm[24] && lm[24].visibility > 0.5) {
+        const torsoPx = Math.abs(cy - lmToCanvas(lm[24], canvas, video).y);
+        if (torsoPx > shoulderPx * 0.95) estimates.push(((shoulderPx * 1.32) / torsoPx) * (heightCm * 0.30));
+      }
+
+      const rawCameraShoulder = estimates.length > 0
+        ? estimates.reduce((a, b) => a + b, 0) / estimates.length
+        : profileShoulderCm;
+
+      // Sensor Fusion: gabungkan pengamatan kamera dengan baseline antropometri profil agar tidak melompat ekstrem
+      const fusedShoulder = s.profile
+        ? rawCameraShoulder * 0.60 + profileShoulderCm * 0.40
+        : rawCameraShoulder * 0.72 + profileShoulderCm * 0.28;
+      const clampedShoulder = Math.max(38, Math.min(52, fusedShoulder));
+      const prevMeasured = measuredShoulderRef.current ?? clampedShoulder;
+      const shoulderCm = prevMeasured * 0.82 + clampedShoulder * 0.18;
+      measuredShoulderRef.current = Math.round(shoulderCm * 10) / 10;
+
+      const sz = p.sizes.find((x) => x.size_label === mirrorSize);
+      const eff = (sz?.shoulder_width_cm || 46) * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100);
+      const diff = eff - shoulderCm;
+      next.shoulder = `Bahu Anda ±${Math.round(shoulderCm)} cm`;
+      if (diff >= -2.5 && diff <= 3.5) { next.fit = `Size ${mirrorSize} ✓ Pas di bahu`; next.ok = true; }
+      else if (diff < -2.5) { next.fit = `Size ${mirrorSize} agak ketat`; next.warn = true; }
+      else next.fit = `Size ${mirrorSize} agak longgar`;
+
+      // Cari ukuran terbaik berdasarkan lebar bahu terukur di kamera (target boxy ease +1.5 cm)
+      const camBest = p.sizes
+        .filter((x) => inStock(p.sku_id, x.size_label))
+        .map((x) => ({ l: x.size_label, eff: x.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
+        .sort((a, b) => Math.abs(a.eff - shoulderCm - 1.5) - Math.abs(b.eff - shoulderCm - 1.5))[0];
+      const profileBest = r ? (r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label) : null;
+      const sugLabel = (!next.ok && camBest && camBest.l !== mirrorSize)
+        ? camBest.l
+        : (profileBest && profileBest !== mirrorSize ? profileBest : camBest?.l);
+      if (sugLabel && sugLabel !== mirrorSize) next.fit += ` → AI: ${sugLabel}`;
     } else {
       next.status = trackingRef.current ? 'Mengunci tubuh… jaga jarak ±1–2 m' : 'Cermin manual — AI belum aktif';
       next.shoulder = 'Bahu: mengunci…';
@@ -338,6 +469,47 @@ export default function MirrorScreen() {
             <span className="hud-chip" id="hud-status">{hud.status}</span>
             <span className="hud-chip hud-chip--dim" id="hud-shoulder">{hud.shoulder}</span>
             <span className={`hud-chip${hud.ok ? ' hud-chip--ok' : ''}${hud.warn ? ' hud-chip--warn' : ''}`} id="hud-fit">{hud.fit}</span>
+          </div>
+
+          {/* Floating Glass Dock di bagian bawah Cermin agar kontrol Ukuran & Warna langsung terlihat di layar HP tanpa perlu scroll */}
+          <div className="mirror-dock">
+            <div className="mirror-dock__top">
+              <span className="mirror-dock__skin">
+                <i style={{ background: colorHarmony.skinTone.hex }} />
+                Kulit {colorHarmony.skinTone.shortLabel} · <b>{p.variant} ({colorHarmony.score}%)</b>
+              </span>
+              <div className="mirror-dock__sizes" role="radiogroup" aria-label="Pilih ukuran cepat">
+                {sizes.map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    className={`mirror-dock__size${l === mirrorSize ? ' is-active' : ''}`}
+                    onClick={() => set({ mirrorSize: l })}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mirror-dock__colors" aria-label="Ganti warna pakaian cepat">
+              {[...CATALOG]
+                .sort((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
+                .map((item) => {
+                  const h = scoreColorHarmony(activeSkinId, item.variant);
+                  const isCur = item.sku_id === p.sku_id;
+                  return (
+                    <button
+                      key={item.sku_id}
+                      type="button"
+                      className={`mirror-dock__color${isCur ? ' is-active' : ''}`}
+                      onClick={() => set({ mirrorSku: item.sku_id, currentSku: item.sku_id })}
+                    >
+                      <i style={{ background: h.colorHex }} />
+                      <span>{item.variant.replace(/^\d+\s+/, '')} {h.score}%</span>
+                    </button>
+                  );
+                })}
+            </div>
           </div>
         </div>
 
