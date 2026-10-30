@@ -17,10 +17,16 @@ export default function ProductScreen() {
 
   const r = s.profile ? ensureResult(p.sku_id) : null;
   const best = r?.best.size_label ?? null;
-  const reviews = useMemo(
-    () => [...p.reviews, ...(s.remoteReviews[p.sku_id] || []), ...(s.userReviews[p.sku_id] || [])],
-    [p, s.remoteReviews, s.userReviews]
-  );
+  const reviews = useMemo(() => {
+    const raw = [...p.reviews, ...(s.remoteReviews[p.sku_id] || []), ...(s.userReviews[p.sku_id] || [])];
+    const seen = new Set<string>();
+    return raw.filter((rv) => {
+      const key = `${rv.name}|${rv.rating}|${rv.text}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [p, s.remoteReviews, s.userReviews]);
   const sum = summarize(reviews);
   const shown = s.showAllReviews ? reviews : reviews.slice(0, 2);
   const related = CATALOG.filter((x) => x.category === p.category && x.sku_id !== p.sku_id).slice(0, 4);
@@ -144,6 +150,11 @@ export default function ProductScreen() {
                     · <span className="atelier-match">{r.confidence}% Cocok</span>
                   </strong>
                   <p>Profil "{s.profile!.profile_name}" · {s.profile!.metrics.height_cm} cm / {s.profile!.metrics.weight_kg} kg</p>
+                  {r.colorHarmony && (
+                    <small style={{ display: 'block', color: '#3F3D39', fontSize: '11.5px', marginTop: '4px' }}>
+                      🎨 <b>Warna {p.variant}: {r.colorHarmony.score}% ({r.colorHarmony.verdict})</b> untuk kulit {r.colorHarmony.skinTone.shortLabel} — {r.colorHarmony.reason}
+                    </small>
+                  )}
                   {r.isCalibratedFromFeedback && r.feedbackBias?.summaryNote && (
                     <small style={{ display: 'block', color: 'var(--ok)', fontSize: '11px', marginTop: '3px' }}>
                       ✓ {r.feedbackBias.summaryNote}

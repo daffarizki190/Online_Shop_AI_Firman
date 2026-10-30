@@ -13,8 +13,62 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'content-type, authorization',
-  'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(self), microphone=()',
 };
+
+/* ---------------- rate limiter & sanitasi ---------------- */
+const rateBuckets = new Map();
+
+export function getClientIp(req) {
+  const xff = req.headers.get('x-forwarded-for');
+  if (xff) return xff.split(',')[0].trim();
+  return req.headers.get('x-real-ip') || 'unknown';
+}
+
+/** Sliding-window rate limiter per instance serverless. */
+export function checkRateLimit(req, bucketKey, maxReq = 30, windowMs = 60_000) {
+  const ip = getClientIp(req);
+  const key = `${bucketKey}:${ip}`;
+  const now = Date.now();
+  const prev = (rateBuckets.get(key) || []).filter((t) => now - t < windowMs);
+  if (prev.length >= maxReq) return false;
+  prev.push(now);
+  rateBuckets.set(key, prev);
+  if (rateBuckets.size > 2000) {
+    for (const [k, arr] of rateBuckets.entries()) {
+      if (arr.every((t) => now - t >= windowMs)) rateBuckets.delete(k);
+    }
+  }
+  return true;
+}
+
+/** Sanitasi string input untuk mencegah karakter kontrol & XSS payload. */
+export function sanitizeText(val, maxLen = 250) {
+  return String(val ?? '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/<\/?(?:script|iframe|object|embed|svg|math|style|link|meta)\b[^>]*>/gi, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    .trim()
+    .slice(0, maxLen);
+}
+
+/* Antrean per-key agar tidak terjadi race condition saat read-modify-write di instance yang sama */
+const keyLocks = new Map();
+export async function withKeyLock(key, fn) {
+  const prev = keyLocks.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(fn);
+  keyLocks.set(key, next);
+  try {
+    return await next;
+  } finally {
+    if (keyLocks.get(key) === next) keyLocks.delete(key);
+  }
+}
 
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {

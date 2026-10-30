@@ -3,7 +3,7 @@
  * PUT /api/profile { profile } (Bearer token) → { ok }
  * Profil fit mengikuti skema `user_body_profiles` (lihat README).
  */
-import { json, preflight, readJSON, writeJSON, verifyToken } from './_lib.js';
+import { json, preflight, readJSON, writeJSON, verifyToken, checkRateLimit, sanitizeText, withKeyLock } from './_lib.js';
 
 export const OPTIONS = preflight;
 
@@ -17,16 +17,23 @@ export async function GET(req) {
 export async function PUT(req) {
   const email = verifyToken(req);
   if (!email) return json({ error: 'Tidak terautentikasi' }, 401);
+  if (!checkRateLimit(req, 'profile:' + email, 30, 60_000)) {
+    return json({ error: 'Terlalu banyak pembaruan profil' }, 429);
+  }
 
   let body;
   try { body = await req.json(); } catch { return json({ error: 'Body tidak valid' }, 400); }
   const profile = body && body.profile;
   if (!profile || !profile.metrics) return json({ error: 'Struktur profil tidak valid' }, 400);
 
-  await writeJSON('profile:' + email, {
-    ...profile,
-    user_id: email,
-    syncedAt: new Date().toISOString(),
+  const key = 'profile:' + email;
+  return withKeyLock(key, async () => {
+    await writeJSON(key, {
+      ...profile,
+      profile_name: sanitizeText(profile.profile_name || 'My Fit', 40),
+      user_id: email,
+      syncedAt: new Date().toISOString(),
+    });
+    return json({ ok: true });
   });
-  return json({ ok: true });
 }

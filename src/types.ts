@@ -110,16 +110,49 @@ export interface AuthUser {
 }
 
 /** Profil fit (skema user_body_profiles) */
+export type SkinToneId = 'fair_cool' | 'light_warm' | 'medium_warm' | 'olive_neutral' | 'tan_warm' | 'deep_rich';
+
+export interface SkinToneSpec {
+  id: SkinToneId;
+  label: string;
+  shortLabel: string;
+  undertone: 'cool' | 'warm' | 'neutral';
+  season: string;
+  hex: string;
+  desc: string;
+}
+
+export interface ColorHarmonyResult {
+  skinTone: SkinToneSpec;
+  variant: string;
+  colorHex: string;
+  colorUndertone: 'cool' | 'warm' | 'neutral';
+  score: number;
+  verdict: 'Sangat Harmonis' | 'Cocok & Seimbang' | 'Kontras Eksperimental';
+  reason: string;
+}
+
+export interface StylistReport {
+  headline: string;
+  silhouetteAnalysis: string;
+  fabricAnalysis: string;
+  colorAnalysis: ColorHarmonyResult;
+  stylingTips: string[];
+  bestColorProducts: { sku_id: string; name: string; variant: string; score: number; hex: string; reason: string }[];
+}
+
 export interface FitProfile {
   user_id?: string;
   profile_name: string;
   gender: 'male' | 'female';
   age: number;
   input_method: string;
+  skin_tone?: SkinToneId;
   metrics: {
     height_cm: number;
     weight_kg: number;
     body_shape: string;
+    skin_tone?: SkinToneId;
     estimated_chest_cm?: number;
     estimated_waist_cm?: number;
     estimated_hips_cm?: number;
@@ -150,7 +183,7 @@ export interface ScoredSize {
   size_label: string;
   score: number;
   zones: { chest: ZoneFit; shoulder: ZoneFit; length: ZoneFit };
-  garment: { chest_circ_cm: number; shoulder_cm: number; length_cm: number };
+  garment: { chest_circ_cm: number; chest_circ_max_stretch_cm?: number; shoulder_cm: number; length_cm: number; sleeve_cm?: number };
   inStock?: boolean;
   stockCount?: number;
 }
@@ -172,5 +205,7 @@ export interface FitResult {
   confidence: number;
   feedbackBias?: FitFeedbackBias;
   isCalibratedFromFeedback?: boolean;
+  colorHarmony?: ColorHarmonyResult;
+  stylistReport?: StylistReport;
 }
 

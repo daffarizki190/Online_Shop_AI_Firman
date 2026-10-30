@@ -1,7 +1,7 @@
-/* Aura Atelier — service worker v25: NETWORK-FIRST.
+/* Aura Atelier — service worker v26: NETWORK-FIRST.
  * Versi terbaru selalu dipakai (cache hanya fallback offline).
  * Menutup kelas bug "deploy baru tidak muncul karena cache SW lama". */
-const CACHE = 'aura-atelier-v25';
+const CACHE = 'aura-atelier-v26';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/spec.html'];
 
 self.addEventListener('install', (e) => {

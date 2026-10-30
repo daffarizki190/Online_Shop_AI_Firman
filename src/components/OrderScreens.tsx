@@ -65,7 +65,11 @@ export function TrackingScreen() {
     localStorage.setItem(STORE.orders, JSON.stringify(orders));
     const log = JSON.parse(localStorage.getItem(STORE.feedback) || '[]');
     o.items.forEach((i) => log.push({ order_id: o.id, sku_id: i.sku, size: i.size, ai_recommended: i.verified, feedback: value, at: new Date().toISOString() }));
-    localStorage.setItem(STORE.feedback, JSON.stringify(log));
+    const trimmedLog = log.slice(-30);
+    localStorage.setItem(STORE.feedback, JSON.stringify(trimmedLog));
+    if (Cloud.token && s.profile) {
+      Cloud.call('/profile', { method: 'PUT', body: { profile: { ...s.profile, feedbackHistory: trimmedLog } } }).catch(() => {});
+    }
     set({ orders, results: {} });
     toast(value === 'perfect' ? 'Terima kasih! AI berhasil dikalibrasi untuk rekomendasi berikutnya.'
       : 'Tercatat — preferensi ukuran AI Anda telah diperbarui & tukar ukuran gratis segera diproses.');

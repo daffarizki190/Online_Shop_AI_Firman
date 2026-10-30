@@ -14,7 +14,7 @@ export function BagScreen() {
   if (!count) {
     return (
       <section className="screen is-active" id="screen-bag" data-tab="bag" aria-label="Tas belanja">
-        <header className="appbar"><span className="brand brand--sm">ATLELIER BAG</span><span className="mono-muted">0 item</span></header>
+        <header className="appbar"><span className="brand brand--sm">ATELIER BAG</span><span className="mono-muted">0 item</span></header>
         <Stepper active={1} />
         <div className="screen__body">
           <EmptyState icon={<IconBag />} title="Tas masih kosong"
@@ -30,7 +30,7 @@ export function BagScreen() {
 
   return (
     <section className="screen is-active" id="screen-bag" data-tab="bag" aria-label="Tas belanja">
-      <header className="appbar"><span className="brand brand--sm">ATLELIER BAG</span><span className="mono-muted">{count} item</span></header>
+      <header className="appbar"><span className="brand brand--sm">ATELIER BAG</span><span className="mono-muted">{count} item</span></header>
       <Stepper active={1} />
       <div className="screen__body">
         <div className="guarantee"><span aria-hidden="true">🛡</span>
@@ -194,7 +194,7 @@ export function AddressScreen() {
       <div className="screen__body">
         {ff('nama', 'Nama Penerima', <input className="control" value={f.nama} onChange={(e) => setF({ ...f, nama: e.target.value })} placeholder="Nama di paket" />)}
         {ff('phone', 'No. HP Penerima', <input className="control" type="tel" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} placeholder="08xx xxxx xxxx" />)}
-        {ff('provinsi', <>)Provinsi <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(menentukan zona ongkir)</span></>, (
+        {ff('provinsi', <>Provinsi <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(menentukan zona ongkir)</span></>, (
           <select className="control" value={f.provinsi} onChange={(e) => { setF({ ...f, provinsi: e.target.value, kota: '' }); setBad(null); }}>
             <option value="">— Pilih provinsi —</option>
             {PROVINSI.map((p) => <option key={p} value={p}>{p}</option>)}

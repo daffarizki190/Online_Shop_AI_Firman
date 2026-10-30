@@ -22,13 +22,30 @@ const mime = {
 };
 
 http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('Bad Request');
+    return;
+  }
   if (urlPath === '/') urlPath = '/index.html';
-  const file = path.join(root, urlPath);
-  if (!file.startsWith(root)) { res.writeHead(403); res.end('Forbidden'); return; }
+  const resolvedRoot = path.resolve(root);
+  const file = path.resolve(resolvedRoot, '.' + urlPath);
+  if (file !== resolvedRoot && !file.startsWith(resolvedRoot + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Not found'); return; }
-    res.writeHead(200, { 'Content-Type': mime[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+    res.writeHead(200, {
+      'Content-Type': mime[path.extname(file).toLowerCase()] || 'application/octet-stream',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    });
     res.end(data);
   });
 }).listen(PORT, () => console.log('Aura Atelier berjalan di http://localhost:' + PORT));

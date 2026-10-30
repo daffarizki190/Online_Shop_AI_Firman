@@ -4,6 +4,22 @@ import type { AuthUser } from '../types';
 
 const DEMO_USER = { name: 'Demo Aura', email: 'demo@aura.id', phone: '0812 0000 0000', pass: '123456' };
 
+/** Hash kata sandi di sisi klien (Web Crypto SHA-256 + salt) agar localStorage tidak pernah menyimpan plaintext password. */
+async function hashLocalPassword(pass: string, email: string): Promise<string> {
+  const raw = `aura-local-v1:${email.toLowerCase()}:${pass}`;
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Fallback hash deterministik bila lingkungan non-secure context
+  let h = 2166136261;
+  for (let i = 0; i < raw.length; i++) {
+    h ^= raw.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return 'fnv1a:' + (h >>> 0).toString(16);
+}
+
 export default function LoginScreen() {
   const { s, set, goto, toast, syncPull } = useApp();
   const [err, setErr] = useState<string | null>(null);
@@ -16,10 +32,11 @@ export default function LoginScreen() {
 
   const authError = (m: string) => setErr(m);
 
-  const ensureDemoUser = () => {
+  const ensureDemoUser = async () => {
     const users = JSON.parse(localStorage.getItem(STORE.users) || '[]');
     if (!users.some((u: any) => u.email === DEMO_USER.email)) {
-      users.push(DEMO_USER);
+      const passHash = await hashLocalPassword(DEMO_USER.pass, DEMO_USER.email);
+      users.push({ name: DEMO_USER.name, email: DEMO_USER.email, phone: DEMO_USER.phone, passHash });
       localStorage.setItem(STORE.users, JSON.stringify(users));
     }
   };
@@ -40,6 +57,7 @@ export default function LoginScreen() {
     if (!/^\S+@\S+\.\S+$/.test(em)) return authError('Format email tidak valid.');
     if (pass.length < 6) return authError('Kata sandi minimal 6 karakter.');
     setBusy(true);
+    const passHash = await hashLocalPassword(pass, em);
 
     if (await Cloud.ping()) {
       try {
@@ -49,7 +67,7 @@ export default function LoginScreen() {
         });
         Cloud.setToken(res.token);
         if (res.user.role !== 'admin' && !users.some((u) => u.email === em)) {
-          users.push({ name: res.user.name, email: em, phone: res.user.phone, pass });
+          users.push({ name: res.user.name, email: em, phone: res.user.phone, passHash });
           localStorage.setItem(STORE.users, JSON.stringify(users));
         }
         setBusy(false);
@@ -67,13 +85,20 @@ export default function LoginScreen() {
       if (name.trim().length < 3) return authError('Nama lengkap minimal 3 karakter.');
       if (phone.replace(/\D/g, '').length < 9) return authError('No. HP tidak valid (min. 9 digit).');
       if (users.some((u) => u.email === em)) return authError('Email sudah terdaftar — gunakan tab Masuk.');
-      users.push({ name, email: em, phone, pass });
+      users.push({ name: name.trim(), email: em, phone: phone.trim(), passHash });
       localStorage.setItem(STORE.users, JSON.stringify(users));
-      loginAs({ name, email: em, phone });
+      loginAs({ name: name.trim(), email: em, phone: phone.trim() });
     } else {
       const u = users.find((x) => x.email === em);
       if (!u) return authError('Email belum terdaftar. Coba tab Daftar atau akun demo.');
-      if (u.pass !== pass) return authError('Kata sandi salah.');
+      const okPass = u.passHash ? u.passHash === passHash : u.pass === pass;
+      if (!okPass) return authError('Kata sandi salah.');
+      // Migrasi otomatis bila masih format lama (plaintext) ke passHash
+      if (u.pass && !u.passHash) {
+        delete u.pass;
+        u.passHash = passHash;
+        localStorage.setItem(STORE.users, JSON.stringify(users));
+      }
       loginAs({ name: u.name, email: u.email, phone: u.phone });
     }
   };

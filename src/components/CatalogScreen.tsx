@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { CATALOG, CATEGORIES, prod, summarize } from '../data';
+import { scoreColorHarmony } from '../engine';
 import { useApp, fmtIDR, fmtK } from '../store';
 import { Stars, IconSearch, IconHeart, IconBag } from '../ui';
 import type { Product } from '../types';
@@ -25,15 +26,24 @@ export default function CatalogScreen() {
     if (sort === 'desc') l = [...l].sort((a, b) => b.price - a.price);
     if (sort === 'rating') l = [...l].sort((a, b) => avg(b) - avg(a));
     if (sort === 'pop') l = [...l].sort((a, b) => b.sold - a.sold);
+    if (sort === 'color') {
+      const skinId = s.profile?.skin_tone || (s.profile?.metrics.skin_tone as string) || 'medium_warm';
+      l = [...l].sort((a, b) => scoreColorHarmony(skinId, b.variant).score - scoreColorHarmony(skinId, a.variant).score);
+    }
     return l;
-  }, [s.search, s.remoteReviews, s.userReviews, q]);
+  }, [s.search, s.remoteReviews, s.userReviews, s.profile, q]);
 
   const matches = q ? CATALOG.filter((p) => searchable(p).includes(q)).slice(0, 5) : [];
   const badge = (p: Product) => {
     const r = s.profile ? ensureResult(p.sku_id) : null;
     if (r) {
       const label = r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label;
-      return <span className="prod-card__badge prod-card__badge--ai">AI: {label}</span>;
+      const colorScore = r.colorHarmony?.score ?? 0;
+      return (
+        <span className="prod-card__badge prod-card__badge--ai">
+          AI: {label}{colorScore >= 95 ? ` · 🎨 ${colorScore}%` : ''}
+        </span>
+      );
     }
     if (p.compare_at_price > p.price) return <span className="prod-card__badge">Promo</span>;
     return null;
@@ -100,6 +110,7 @@ export default function CatalogScreen() {
         <select id="sort-select" className="control control--sm" aria-label="Urutkan katalog"
           value={s.search.sort} onChange={(e) => set({ search: { ...s.search, sort: e.target.value } })}>
           <option value="pop">Terlaris</option>
+          <option value="color">Warna Cocok Kulit (AI)</option>
           <option value="asc">Harga terendah</option>
           <option value="desc">Harga tertinggi</option>
           <option value="rating">Rating tertinggi</option>

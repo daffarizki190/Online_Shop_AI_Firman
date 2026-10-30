@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { prod } from '../data';
-import { useApp, inStock } from '../store';
+import { CATALOG, prod } from '../data';
+import { detectSkinToneFromRGB, scoreColorHarmony, SKIN_TONES } from '../engine';
+import { useApp, inStock, STORE } from '../store';
+import type { SkinToneId } from '../types';
 import { Subbar } from '../ui';
 
 const MIRROR_SHAPES: Record<string, string> = {
   tee: 'M 360 330 Q 448 385 536 330 L 646 360 L 726 505 L 646 540 L 614 480 L 602 920 Q 448 945 294 920 L 282 480 L 250 540 L 170 505 L 250 360 Z',
+  longsleeve: 'M 360 330 Q 448 385 536 330 L 646 360 L 774 845 L 702 870 L 614 485 L 602 920 Q 448 945 294 920 L 282 485 L 194 870 L 122 845 L 250 360 Z',
   hoodie: 'M 350 326 Q 448 376 546 326 L 646 360 L 730 525 L 650 558 L 616 490 L 602 935 Q 448 958 294 935 L 280 490 L 246 558 L 166 525 L 250 360 Z',
   shirt: 'M 360 328 L 416 352 L 448 390 L 480 352 L 536 328 L 646 360 L 726 510 L 646 545 L 614 485 L 602 930 Q 448 955 294 930 L 282 485 L 250 545 L 170 510 L 250 360 Z',
 };
-const SHAPE_BY_CAT: Record<string, string> = { 'T-Shirt': 'tee', 'Longsleeve': 'tee', 'Hoodie': 'hoodie', 'Kemeja': 'shirt' };
+const SHAPE_BY_CAT: Record<string, string> = { 'T-Shirt': 'tee', 'Longsleeve': 'longsleeve', 'Hoodie': 'hoodie', 'Kemeja': 'shirt' };
 const MIRROR_COLORS: Record<string, string> = {
   '04 Noir': '#1F1F23', '05 Bone': '#E8E2D4', '06 Slate': '#6E7278', '07 Ink': '#26282E',
   '08 Carbon': '#313136', '09 Moss': '#5C6650', '10 Ecru': '#EDE6D6', '11 Indigo': '#3E4668',
@@ -28,8 +31,31 @@ export default function MirrorScreen() {
   const trackingRef = useRef(false);
   const onRef = useRef(false);
   const smoothRef = useRef({ cx: 0, cy: 0, shoulderPx: 0, angle: 0, initialized: false });
+  const measuredShoulderRef = useRef<number | null>(null);
+  const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameCountRef = useRef(0);
+  const rgbSmoothRef = useRef({ r: 210, g: 165, b: 130, initialized: false });
+  const [detectedSkin, setDetectedSkin] = useState<SkinToneId | null>(null);
   const [fallback, setFallback] = useState(false);
   const [hud, setHud] = useState({ status: 'Menyiapkan kamera…', shoulder: 'Bahu: —', fit: '', ok: false, warn: false });
+  const hudRef = useRef(hud);
+
+  const activeSkinId: SkinToneId = (detectedSkin || s.profile?.skin_tone || s.profile?.metrics.skin_tone || 'medium_warm') as SkinToneId;
+  const colorHarmony = scoreColorHarmony(activeSkinId, p.variant);
+
+  const updateHud = (next: typeof hud) => {
+    const cur = hudRef.current;
+    if (
+      cur.status !== next.status ||
+      cur.shoulder !== next.shoulder ||
+      cur.fit !== next.fit ||
+      cur.ok !== next.ok ||
+      cur.warn !== next.warn
+    ) {
+      hudRef.current = next;
+      setHud(next);
+    }
+  };
 
   const sizes: string[] = p.sizes.map((x) => x.size_label as string).filter((l) => inStock(p.sku_id, l));
   const r = s.profile ? ensureResult(p.sku_id) : null;
@@ -143,20 +169,61 @@ export default function MirrorScreen() {
     ctx.stroke();
     ctx.restore();
 
-    const next: typeof hud = { ...hud, ok: false, warn: false };
+    const next: typeof hud = { ...hudRef.current, ok: false, warn: false };
     if (lmOk) {
       next.status = trackingRef.current ? 'Terkunci ✓ — diproses di perangkat Anda' : 'Cermin manual';
+
+      // Deteksi rona kulit wajah otomatis (CIELAB / ITA°) setiap 25 frame dari landmark wajah (lm[0])
+      frameCountRef.current += 1;
+      if (frameCountRef.current % 25 === 0 && lm[0] && lm[0].visibility > 0.55 && video.videoWidth > 0) {
+        try {
+          if (!sampleCanvasRef.current) {
+            sampleCanvasRef.current = document.createElement('canvas');
+            sampleCanvasRef.current.width = 12;
+            sampleCanvasRef.current.height = 12;
+          }
+          const sc = sampleCanvasRef.current;
+          const sctx = sc.getContext('2d', { willReadFrequently: true });
+          if (sctx) {
+            const sx = Math.max(0, Math.min(video.videoWidth - 12, Math.round(lm[0].x * video.videoWidth) - 6));
+            const sy = Math.max(0, Math.min(video.videoHeight - 12, Math.round(lm[0].y * video.videoHeight) - 6));
+            sctx.drawImage(video, sx, sy, 12, 12, 0, 0, 12, 12);
+            const data = sctx.getImageData(0, 0, 12, 12).data;
+            let rSum = 0, gSum = 0, bSum = 0, count = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              const pr = data[i], pg = data[i + 1], pb = data[i + 2];
+              if (pr > 45 && pr < 248 && pr > pb) { rSum += pr; gSum += pg; bSum += pb; count++; }
+            }
+            if (count >= 16) {
+              const avgR = rSum / count, avgG = gSum / count, avgB = bSum / count;
+              const smRgb = rgbSmoothRef.current;
+              if (!smRgb.initialized) {
+                smRgb.r = avgR; smRgb.g = avgG; smRgb.b = avgB; smRgb.initialized = true;
+              } else {
+                smRgb.r = smRgb.r * 0.7 + avgR * 0.3;
+                smRgb.g = smRgb.g * 0.7 + avgG * 0.3;
+                smRgb.b = smRgb.b * 0.7 + avgB * 0.3;
+              }
+              const spec = detectSkinToneFromRGB(smRgb.r, smRgb.g, smRgb.b);
+              setDetectedSkin((prev) => (prev === spec.id ? prev : spec.id));
+            }
+          }
+        } catch { /* abaikan bila canvas tainted */ }
+      }
+
       const heightCm = s.profile?.metrics.height_cm || 170;
       let bodyPx = 0;
-      if (lm[28] && lm[28].visibility > 0.4) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
-      else if (lm[24]) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[24], canvas, video).y) * 1.95;
-      else if (lm[0] && lm[9]) {
+      if (lm[28] && lm[28].visibility > 0.45) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
+      else if (lm[24] && lm[24].visibility > 0.45) bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[24], canvas, video).y) * 1.95;
+      else if (lm[0] && lm[9] && lm[10]) {
         const mouthY = (lmToCanvas(lm[9], canvas, video).y + lmToCanvas(lm[10], canvas, video).y) / 2;
         const headH = Math.abs(mouthY - lmToCanvas(lm[0], canvas, video).y) * 3.5;
-        if (headH > 50) bodyPx = headH * 7.5;
+        if (headH > 40) bodyPx = headH * 7.5;
       }
       if (bodyPx > 0) {
-        const shoulderCm = shoulderPx! / (bodyPx / heightCm);
+        const rawShoulderCm = shoulderPx! / (bodyPx / heightCm);
+        const shoulderCm = Math.max(34, Math.min(58, rawShoulderCm));
+        measuredShoulderRef.current = Math.round(shoulderCm * 10) / 10;
         const sz = p.sizes.find((x) => x.size_label === mirrorSize);
         const eff = (sz?.shoulder_width_cm || 46) * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100);
         const diff = eff - shoulderCm;
@@ -164,9 +231,12 @@ export default function MirrorScreen() {
         if (diff >= -2.5 && diff <= 3.5) { next.fit = `Size ${mirrorSize} ✓ Pas di bahu`; next.ok = true; }
         else if (diff < -2.5) { next.fit = `Size ${mirrorSize} agak ketat`; next.warn = true; }
         else next.fit = `Size ${mirrorSize} agak longgar`;
-        const sug = p.sizes
-          .map((x) => ({ l: x.size_label, eff: x.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
-          .sort((a, b) => Math.abs(a.eff - shoulderCm - 2) - Math.abs(b.eff - shoulderCm - 2))[0];
+        const sug = r
+          ? { l: r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label }
+          : p.sizes
+              .filter((x) => inStock(p.sku_id, x.size_label))
+              .map((x) => ({ l: x.size_label, eff: x.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
+              .sort((a, b) => Math.abs(a.eff - shoulderCm - 2) - Math.abs(b.eff - shoulderCm - 2))[0];
         if (sug && sug.l !== mirrorSize) next.fit += ` → AI: ${sug.l}`;
       }
     } else {
@@ -174,7 +244,7 @@ export default function MirrorScreen() {
       next.shoulder = 'Bahu: mengunci…';
       next.fit = `Size ${mirrorSize}`;
     }
-    setHud(next);
+    updateHud(next);
   };
 
   const loop = () => {
@@ -287,8 +357,90 @@ export default function MirrorScreen() {
               onClick={() => set({ mirrorSize: l })}>{l}</button>
           ))}
         </div>
+
+        {/* Panel Harmoni Warna Kulit & Pencocokan Warna Real-Time */}
+        <div style={{ margin: '12px 16px 4px', padding: '10px 12px', borderRadius: 10, background: '#FAF8F3', border: '1px solid var(--line, #E2DFD9)' }}>
+          <div className="row-between" style={{ marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600 }}>
+              🎨 Kulit: <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: colorHarmony.skinTone.hex, border: '1px solid rgba(0,0,0,0.25)', verticalAlign: 'middle', margin: '0 3px' }} />
+              {colorHarmony.skinTone.shortLabel} {detectedSkin ? '(Kamera AI)' : ''}
+            </span>
+            <span className="chip chip--fit" style={{ fontSize: 10.5, padding: '2px 7px' }}>
+              Warna {p.variant}: {colorHarmony.score}% {colorHarmony.verdict}
+            </span>
+          </div>
+          <p style={{ fontSize: 11.5, color: 'var(--muted)', margin: '0 0 8px' }}>{colorHarmony.reason}</p>
+
+          <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 4 }}>
+            {SKIN_TONES.map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => {
+                  setDetectedSkin(st.id);
+                  if (s.profile) {
+                    const updated = { ...s.profile, skin_tone: st.id, metrics: { ...s.profile.metrics, skin_tone: st.id } };
+                    localStorage.setItem(STORE.profile, JSON.stringify(updated));
+                    set({ profile: updated, results: {} });
+                  }
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '3px 8px',
+                  borderRadius: 99,
+                  fontSize: 10.5,
+                  whiteSpace: 'nowrap',
+                  border: activeSkinId === st.id ? '1.5px solid #121212' : '1px solid var(--line, #E2DFD9)',
+                  background: activeSkinId === st.id ? '#EFECE4' : '#fff',
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: st.hex, border: '1px solid rgba(0,0,0,0.2)' }} />
+                {st.shortLabel}
+              </button>
+            ))}
+          </div>
+
+          <small style={{ display: 'block', fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--muted)', margin: '8px 0 5px' }}>
+            Ganti Warna Pakaian di Cermin (Diurutkan AI untuk Kulit Anda):
+          </small>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+            {[...CATALOG]
+              .sort((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
+              .map((item) => {
+                const h = scoreColorHarmony(activeSkinId, item.variant);
+                const isCur = item.sku_id === p.sku_id;
+                return (
+                  <button
+                    key={item.sku_id}
+                    type="button"
+                    onClick={() => set({ mirrorSku: item.sku_id, currentSku: item.sku_id })}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 9px',
+                      borderRadius: 8,
+                      fontSize: 11,
+                      whiteSpace: 'nowrap',
+                      border: isCur ? '1.5px solid #121212' : '1px solid var(--line, #E2DFD9)',
+                      background: isCur ? '#121212' : '#fff',
+                      color: isCur ? '#fff' : '#121212',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: h.colorHex, border: '1px solid rgba(255,255,255,0.5)' }} />
+                    <span>{item.variant} · {h.score}%</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+
         <p className="fineprint" style={{ padding: '8px 16px 16px' }}>
-          {s.profile ? '🪞 Pose AI berjalan di perangkat — pakaian diposisikan mengikuti bahu Anda, dan lebar bahu diestimasi dari kamera untuk cek kecocokan size.' : '🪞 Pose AI berjalan di perangkat. Tip: isi Atelier Consultation dulu agar estimasi bahu memakai tinggi badan Anda.'}
+          {s.profile ? '🪞 Pose & Skin-Tone AI berjalan di perangkat — pakaian mengikuti bahu Anda, dan warna dianalisis terhadap rona kulit Anda.' : '🪞 Pose & Skin-Tone AI berjalan di perangkat. Tip: isi Atelier Consultation dulu agar estimasi bahu memakai tinggi badan Anda.'}
         </p>
       </div>
       <div className="screen__cta">

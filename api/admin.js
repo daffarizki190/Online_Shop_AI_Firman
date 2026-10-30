@@ -14,12 +14,23 @@ const ORDER_STAGES = 6;
 
 async function collect(prefix, withBuyer) {
   const ls = await list({ prefix });
+  const blobs = ls.blobs || [];
   const out = [];
-  for (const b of ls.blobs || []) {
-    const buyer = withBuyer ? b.pathname.slice(prefix.length) : null;
-    const data = await readJSON(b.pathname, null);
-    if (Array.isArray(data)) data.forEach((x) => out.push({ ...x, ...(buyer ? { buyer } : {}) }));
-    else if (data) out.push({ ...data, ...(buyer ? { buyer } : {}) });
+  // Batch paralel (concurrency = 10) untuk mencegah timeout O(N) sekuensial
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < blobs.length; i += BATCH_SIZE) {
+    const chunk = blobs.slice(i, i + BATCH_SIZE);
+    const results = await Promise.all(
+      chunk.map(async (b) => {
+        const buyer = withBuyer ? b.pathname.slice(prefix.length) : null;
+        const data = await readJSON(b.pathname, null);
+        return { buyer, data };
+      })
+    );
+    for (const { buyer, data } of results) {
+      if (Array.isArray(data)) data.forEach((x) => out.push({ ...x, ...(buyer ? { buyer } : {}) }));
+      else if (data) out.push({ ...data, ...(buyer ? { buyer } : {}) });
+    }
   }
   return out;
 }

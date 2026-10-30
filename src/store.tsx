@@ -20,11 +20,16 @@ const save = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.str
 
 export const SHIP_ZONES: Record<string, { label: string; eco: number; reg: number; exp: number; etas: Record<string, string> }> = {
   'DKI Jakarta': { label: 'Zona Jakarta', eco: 9000, reg: 15000, exp: 28000, etas: { eco: '3–5 hari', reg: '1–2 hari', exp: 'Hari ini' } },
+  'Banten': { label: 'Zona Jakarta', eco: 10000, reg: 16000, exp: 29000, etas: { eco: '3–5 hari', reg: '1–2 hari', exp: '1 hari' } },
   'Jawa Barat': { label: 'Zona Jawa', eco: 12000, reg: 18000, exp: 32000, etas: { eco: '4–6 hari', reg: '2–3 hari', exp: '1 hari' } },
   'Jawa Tengah': { label: 'Zona Jawa', eco: 12000, reg: 18000, exp: 32000, etas: { eco: '4–6 hari', reg: '2–3 hari', exp: '1 hari' } },
   'DI Yogyakarta': { label: 'Zona Jawa', eco: 12000, reg: 18000, exp: 32000, etas: { eco: '4–6 hari', reg: '2–3 hari', exp: '1 hari' } },
   'Jawa Timur': { label: 'Zona Jawa', eco: 12000, reg: 18000, exp: 32000, etas: { eco: '4–6 hari', reg: '2–3 hari', exp: '1 hari' } },
   'Bali': { label: 'Zona Bali & Nusra', eco: 18000, reg: 26000, exp: 40000, etas: { eco: '5–8 hari', reg: '3–4 hari', exp: '1–2 hari' } },
+  'Sumatera Utara': { label: 'Zona Luar Jawa', eco: 24000, reg: 34000, exp: 52000, etas: { eco: '6–9 hari', reg: '3–5 hari', exp: '2–3 hari' } },
+  'Sumatera Selatan': { label: 'Zona Luar Jawa', eco: 22000, reg: 30000, exp: 48000, etas: { eco: '5–8 hari', reg: '3–4 hari', exp: '1–2 hari' } },
+  'Kalimantan Timur': { label: 'Zona Luar Jawa', eco: 26000, reg: 36000, exp: 55000, etas: { eco: '6–9 hari', reg: '3–5 hari', exp: '2–3 hari' } },
+  'Sulawesi Selatan': { label: 'Zona Luar Jawa', eco: 26000, reg: 36000, exp: 55000, etas: { eco: '6–9 hari', reg: '3–5 hari', exp: '2–3 hari' } },
 };
 const SHIP_META = { eco: { id: 'eco', label: 'Ekonomis' }, reg: { id: 'reg', label: 'Reguler' }, exp: { id: 'exp', label: 'Ekspres' } } as const;
 
@@ -47,11 +52,16 @@ export const ORDER_STAGES = ['Pesanan Dibuat', 'Pembayaran Terverifikasi', 'Seda
 export const PROVINSI = Object.keys(SHIP_ZONES);
 export const KOTA_BY_PROV: Record<string, string[]> = {
   'DKI Jakarta': ['Jakarta Selatan', 'Jakarta Barat', 'Jakarta Pusat', 'Jakarta Timur', 'Jakarta Utara'],
+  'Banten': ['Tangerang Selatan', 'Tangerang', 'Serang', 'Cilegon'],
   'Jawa Barat': ['Bandung', 'Bekasi', 'Bogor', 'Depok', 'Cirebon'],
-  'Jawa Tengah': ['Semarang', 'Solo', 'Magelang'],
+  'Jawa Tengah': ['Semarang', 'Solo', 'Magelang', 'Purwokerto'],
   'DI Yogyakarta': ['Yogyakarta', 'Sleman', 'Bantul'],
-  'Jawa Timur': ['Surabaya', 'Malang', 'Gresik'],
-  'Bali': ['Denpasar', 'Badung', 'Ubud'],
+  'Jawa Timur': ['Surabaya', 'Malang', 'Gresik', 'Sidoarjo'],
+  'Bali': ['Denpasar', 'Badung', 'Ubud', 'Gianyar'],
+  'Sumatera Utara': ['Medan', 'Binjai', 'Deli Serdang'],
+  'Sumatera Selatan': ['Palembang', 'Prabumulih'],
+  'Kalimantan Timur': ['Balikpapan', 'Samarinda', 'Bontang'],
+  'Sulawesi Selatan': ['Makassar', 'Gowa', 'Parepare'],
 };
 
 export const fmtIDR = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
@@ -161,7 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!st.profile) return null;
     if (!st.results[sku]) {
       const feedbackList = load(STORE.feedback, []);
-      const r = recommend(st.profile, prod(sku), feedbackList);
+      const r = recommend(st.profile, prod(sku), feedbackList, CATALOG);
       setS((prev) => ({ ...prev, results: { ...prev.results, [sku]: r } }));
       return r;
     }
@@ -213,10 +223,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch { /* offline */ }
     try {
-      const { profile } = await Cloud.call<{ profile: FitProfile | null }>('/profile?email=' + encodeURIComponent(email));
-      if (profile && !sRef.current.profile) {
-        save(STORE.profile, profile);
-        set({ profile });
+      const { profile } = await Cloud.call<{ profile: (FitProfile & { feedbackHistory?: any[] }) | null }>('/profile?email=' + encodeURIComponent(email));
+      if (profile) {
+        if (Array.isArray(profile.feedbackHistory) && profile.feedbackHistory.length > 0) {
+          const localFb = load<any[]>(STORE.feedback, []);
+          if (localFb.length === 0) save(STORE.feedback, profile.feedbackHistory);
+        }
+        if (!sRef.current.profile) {
+          save(STORE.profile, profile);
+          set({ profile, results: {} });
+        }
       }
     } catch { /* offline */ }
   };

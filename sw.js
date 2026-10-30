@@ -1,17 +1,8 @@
-/* Aura Atelier — service worker sederhana: cache-first untuk app shell */
-const CACHE = 'aura-atelier-v22';
-const SHELL = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
-  '/css/app.css',
-  '/js/data.js',
-  '/js/size-engine.js',
-  '/js/app.js',
-  '/assets/boxy-tee-noir.jpg',
-  '/assets/icon.svg',
-  '/assets/icon-maskable.svg',
-];
+/* Aura Atelier — service worker v26: NETWORK-FIRST.
+ * Versi terbaru selalu dipakai (cache hanya fallback offline).
+ * Menutup kelas bug "deploy baru tidak muncul karena cache SW lama". */
+const CACHE = 'aura-atelier-v26';
+const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/spec.html'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -28,16 +19,16 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  // API & service worker tidak boleh di-cache (selalu ke server)
+  // API & SW sendiri tidak pernah di-cache
   if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return;
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).then((res) => {
+    fetch(e.request)
+      .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));
         return res;
-      });
-    }).catch(() => caches.match('/index.html'))
+      })
+      .catch(() => caches.match(e.request).then((c) => c || caches.match('/index.html')))
   );
 });

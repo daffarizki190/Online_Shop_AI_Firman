@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { prod } from '../data';
-import { estimateBody, FIT_PREFERENCE_EASE } from '../engine';
+import { CATALOG, prod } from '../data';
+import { estimateBody, FIT_PREFERENCE_EASE, SKIN_TONES, generateStylistReport, scoreColorHarmony } from '../engine';
 import { useApp, STORE, Cloud, fmtK, inStock } from '../store';
 import { Subbar } from '../ui';
-import type { FitResult } from '../types';
+import type { FitResult, SkinToneId } from '../types';
 
 const SHAPES = [
+  { id: 'athletic', label: 'Atletis', desc: 'Dada & bahu bidang, pinggang ramping terlatih.', path: 'M9 12 Q20 6 31 12 L34 28 L27 58 L13 58 L6 28 Z' },
   { id: 'inverted_triangle', label: 'Segitiga Terbalik', desc: 'Bahu jauh lebih lebar dari pinggul.', path: 'M8 12 Q20 6 32 12 L36 28 L28 58 L12 58 L4 28 Z' },
   { id: 'rectangle', label: 'Persegi', desc: 'Bahu, pinggang, dan pinggul relatif sejajar.', path: 'M12 12 Q20 8 28 12 L29 58 L11 58 Z' },
+  { id: 'pear', label: 'Pir / Segitiga', desc: 'Pinggul lebih lebar dibandingkan bahu & dada.', path: 'M13 12 Q20 8 27 12 L28 30 L33 58 L7 58 L12 30 Z' },
   { id: 'oval', label: 'Oval', desc: 'Volume terpusat di tengah badan.', path: 'M12 12 Q20 7 28 12 Q34 30 28 48 Q20 60 12 48 Q6 30 12 12 Z' },
   { id: 'hourglass', label: 'Jam Pasir', desc: 'Dada & pinggul seimbang, pinggang terdefinisi.', path: 'M10 12 Q20 7 30 12 L26 30 L31 58 L9 58 L14 30 Z' },
 ];
@@ -20,6 +22,7 @@ export function StudioScreen() {
   const [gender, setGender] = useState<'male' | 'female'>((s.profile?.gender as any) ?? 'male');
   const [fit, setFit] = useState<'tight' | 'regular' | 'oversized'>(s.profile?.fit_preference ?? 'regular');
   const [shape, setShape] = useState((s.profile?.metrics.body_shape as string) ?? 'rectangle');
+  const [skinTone, setSkinTone] = useState<SkinToneId>((s.profile?.skin_tone || s.profile?.metrics.skin_tone || 'medium_warm') as SkinToneId);
   const [bad, setBad] = useState<Record<string, boolean>>({});
 
   const bmi = Number(height) && Number(weight) ? Number(weight) / (Number(height) / 100) ** 2 : 0;
@@ -30,14 +33,15 @@ export function StudioScreen() {
     const body = estimateBody({ gender, height_cm: +height, weight_kg: +weight, age: +age, body_shape: shape });
     const profile = {
       user_id: 'usr_demo_001', profile_name: 'My Fit', gender, age: +age, input_method: 'questionnaire_v1',
-      metrics: { ...body, height_cm: +height, weight_kg: +weight, body_shape: shape },
+      skin_tone: skinTone,
+      metrics: { ...body, height_cm: +height, weight_kg: +weight, body_shape: shape, skin_tone: skinTone },
       fit_preference: fit, created_at: s.profile?.created_at ?? now, updated_at: now,
     };
     localStorage.setItem(STORE.profile, JSON.stringify(profile));
     set({ profile, results: {} });
     if (Cloud.token && s.auth) Cloud.call('/profile', { method: 'PUT', body: { profile } }).catch(() => {});
     const p = prod(s.currentSku);
-    toast(`Rekomendasi siap. Profil tersimpan.`);
+    toast(`Rekomendasi ukuran & warna kulit siap. Profil tersimpan.`);
     goto('fitting');
     void p;
   };
@@ -111,6 +115,42 @@ export function StudioScreen() {
               ))}
             </div>
             <p className="fineprint">{SHAPES.find((x) => x.id === shape)?.desc}</p>
+
+            <p className="label-xs" style={{ marginTop: 14 }}>Warna Kulit &amp; Undertone (AI Personal Color)</p>
+            <div role="radiogroup" aria-label="Warna kulit dan undertone" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 6 }}>
+              {SKIN_TONES.map((st) => {
+                const active = skinTone === st.id;
+                return (
+                  <button
+                    key={st.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setSkinTone(st.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: active ? '1.5px solid #121212' : '1px solid var(--line, #E2DFD9)',
+                      background: active ? '#F4F1EA' : '#FFFFFF',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: st.hex, border: '1px solid rgba(0,0,0,0.18)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 11.5, lineHeight: 1.2, fontWeight: active ? 600 : 500, color: '#121212' }}>
+                      {st.shortLabel}
+                      <small style={{ display: 'block', fontSize: 10, color: '#6E6D6A', fontWeight: 400 }}>{st.undertone.toUpperCase()}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="fineprint" style={{ marginTop: 6 }}>
+              🎨 <b>{SKIN_TONES.find((x) => x.id === skinTone)?.season}:</b> {SKIN_TONES.find((x) => x.id === skinTone)?.desc}
+            </p>
           </div>
         )}
       </div>
@@ -185,6 +225,8 @@ export function FittingScreen() {
     { name: 'Lebar Bahu', body: `${prof.metrics.estimated_shoulder_cm} cm`, g: `${g.shoulder_cm} cm`, z: preview.zones.shoulder },
     { name: 'Panjang', body: `${idealLength} cm`, g: `${g.length_cm} cm`, z: preview.zones.length },
   ];
+  const stylist = r.stylistReport || generateStylistReport(prof, p, preview, CATALOG);
+  const colorH = r.colorHarmony || scoreColorHarmony(prof.skin_tone || (prof.metrics.skin_tone as string), p.variant);
 
   return (
     <section className="screen is-active screen--sub" id="screen-fitting" data-tab="studio" aria-label="Hasil fitting">
@@ -205,7 +247,55 @@ export function FittingScreen() {
         <p className="fitting__sub">
           {isBest ? (preciseCount === 3 ? 'Presisi di 3 titik — potongan jatuh pas di bahu, dada, dan panjang.' : `Presisi di ${preciseCount} dari 3 titik.`) : `AI tetap merekomendasikan ${r.best.size_label}.`}
         </p>
-        <span className="method-badge">◎ Kuesioner · {({ tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' } as Record<string, string>)[prof.fit_preference]} · {SHAPES.find((x) => x.id === prof.metrics.body_shape)?.label ?? '—'}</span>
+        <span className="method-badge">◎ {prof.input_method === 'camera_scan' ? 'Kamera AI + Kuesioner' : 'Kuesioner'} · {({ tight: 'Terpotong', regular: 'Reguler', oversized: 'Longgar' } as Record<string, string>)[prof.fit_preference]} · {SHAPES.find((x) => x.id === prof.metrics.body_shape)?.label ?? '—'} · 🎨 {colorH.skinTone.shortLabel}</span>
+
+        {/* Analisis Warna Kulit & Personal Color Harmony */}
+        <div className="construction" style={{ marginTop: 12, background: '#FAF8F3', border: '1px solid var(--line, #E2DFD9)', borderRadius: 10, padding: '12px 14px' }}>
+          <div className="row-between" style={{ marginBottom: 8 }}>
+            <h4 style={{ margin: 0, fontSize: 13 }}>🎨 AI Personal Color Analysis</h4>
+            <span className="chip chip--fit" style={{ fontWeight: 600 }}>{colorH.score}% · {colorH.verdict}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center' }} aria-hidden="true">
+              <span title={`Kulit: ${colorH.skinTone.label}`} style={{ width: 28, height: 28, borderRadius: '50%', background: colorH.skinTone.hex, border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              <span title={`Garmen: ${p.variant}`} style={{ width: 28, height: 28, borderRadius: '50%', background: colorH.colorHex, border: '2px solid #fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', marginLeft: -8 }} />
+            </div>
+            <div style={{ fontSize: 12, lineHeight: 1.35 }}>
+              <b>{colorH.skinTone.shortLabel}</b> ({colorH.skinTone.season}) × <b>{p.variant}</b>
+              <div style={{ color: 'var(--muted)', fontSize: 11.5 }}>{colorH.reason}</div>
+            </div>
+          </div>
+          {stylist.bestColorProducts.length > 0 && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--line, #E2DFD9)' }}>
+              <small style={{ display: 'block', fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--muted)', marginBottom: 6 }}>
+                Rekomendasi Warna Terbaik untuk Kulit Anda:
+              </small>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {stylist.bestColorProducts.map((bp) => (
+                  <button
+                    key={bp.sku_id}
+                    type="button"
+                    onClick={() => set({ currentSku: bp.sku_id, previewSize: null })}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 9px',
+                      borderRadius: 99,
+                      border: bp.sku_id === p.sku_id ? '1.5px solid #121212' : '1px solid var(--line, #E2DFD9)',
+                      background: bp.sku_id === p.sku_id ? '#EFECE4' : '#fff',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: bp.hex, border: '1px solid rgba(0,0,0,0.2)' }} />
+                    <span><b>{bp.variant}</b> ({bp.score}%)</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {r.isCalibratedFromFeedback && r.feedbackBias?.summaryNote && (
           <div className="proof" style={{ background: '#EBF4EE', borderColor: 'var(--ok-soft)' }}>
@@ -268,6 +358,17 @@ export function FittingScreen() {
             ))}
           </tbody>
         </table>
+
+        <div className="construction" style={{ marginBottom: 10 }}>
+          <h4>✨ Analisis Master Tailor &amp; AI Stylist</h4>
+          <ul>
+            <li><b>Proporsi &amp; Siluet:</b> {stylist.silhouetteAnalysis}</li>
+            <li><b>Karakter Kain &amp; Drape:</b> {stylist.fabricAnalysis}</li>
+            {stylist.stylingTips.map((tip, idx) => (
+              <li key={idx}><b>Saran Styling #{idx + 1}:</b> {tip}</li>
+            ))}
+          </ul>
+        </div>
 
         <div className="construction">
           <h4>Konstruksi</h4>
