@@ -852,15 +852,41 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 /* ============================================================
    Cermin AI (virtual try-on via kamera)
    ============================================================ */
+.mirror-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line);
+  overflow-x: auto; scrollbar-width: none;
+}
+.mirror-toolbar::-webkit-scrollbar { display: none; }
+.mirror-toolbar__group { display: inline-flex; align-items: center; gap: 5px; flex: none; }
+.mirror-tool-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 30px; padding: 0 9px; border-radius: 6px;
+  font: 600 11px var(--font-ui); color: var(--ink-2);
+  background: var(--surface); border: 1px solid var(--line-strong);
+  white-space: nowrap; cursor: pointer;
+}
+.mirror-tool-btn.is-active {
+  background: var(--ink); color: var(--surface); border-color: var(--ink);
+}
 .mirror-stage {
   position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 58dvh;
   background: #141414; overflow: hidden; border-bottom: 1px solid var(--line);
+  transition: aspect-ratio 0.25s ease, max-height 0.25s ease;
+}
+.mirror-stage--full {
+  aspect-ratio: 9 / 15; max-height: 68dvh;
 }
 .mirror-stage video {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; transform: scaleX(-1); /* efek cermin */
 }
 .mirror-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.mirror-flash {
+  position: absolute; inset: 0; z-index: 9; background: #fff;
+  animation: mirror-flash-anim 0.26s ease-out forwards; pointer-events: none;
+}
+@keyframes mirror-flash-anim { from { opacity: 0.92; } to { opacity: 0; } }
 .mirror-hud { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; z-index: 2; }
 .hud-chip {
   background: rgba(18, 18, 18, 0.74); color: #FAF9F6;
@@ -870,6 +896,34 @@ select.control { appearance: none; -webkit-appearance: none; background-image: l
 .hud-chip--dim { background: rgba(18, 18, 18, 0.5); color: #D9D7D2; font-weight: 500; }
 .hud-chip--ok { background: rgba(47, 107, 79, 0.9); }
 .hud-chip--warn { background: rgba(184, 74, 40, 0.92); }
+.mirror-gesture-pill {
+  position: absolute; top: 52px; left: 12px; right: 12px; z-index: 4;
+  background: rgba(18, 18, 18, 0.82); color: #7DD8A8;
+  border: 1px solid rgba(125, 216, 168, 0.5); border-radius: 8px;
+  padding: 6px 10px; font: 600 11px var(--font-ui);
+  display: flex; flex-direction: column; gap: 5px; backdrop-filter: blur(6px);
+}
+.mirror-gesture-bar { height: 4px; background: rgba(255, 255, 255, 0.16); border-radius: 2px; overflow: hidden; }
+.mirror-gesture-bar i { display: block; height: 100%; background: #7DD8A8; transition: width 0.12s linear; }
+.mirror-countdown {
+  position: absolute; inset: 0; z-index: 6;
+  background: rgba(18, 18, 18, 0.45); backdrop-filter: blur(3px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; color: #FAF9F6; text-align: center; padding: 20px;
+}
+.mirror-countdown__num {
+  width: 88px; height: 88px; border-radius: 50%;
+  background: rgba(18, 18, 18, 0.82); border: 2.5px solid #7DD8A8;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 44px var(--font-mono); color: #7DD8A8;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.mirror-countdown p { font: 600 13px var(--font-ui); text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); margin: 0; }
+.mirror-integrity-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 14px; font-size: 10.5px; font-weight: 600; color: var(--ink-2);
+  background: #F4F1EA; border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
 .mirror-dock {
   position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3;
   background: rgba(18, 18, 18, 0.72); backdrop-filter: blur(8px);

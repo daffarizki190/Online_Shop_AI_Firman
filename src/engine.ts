@@ -549,3 +549,278 @@ export function recommend(
   };
 }
 
+export interface FiveFingerGestureResult {
+  isFiveFingers: boolean;
+  extendedCount: number;
+  confidence: number;
+  wrist: { x: number; y: number } | null;
+  reason: string;
+}
+
+/**
+ * Deteksi Gestur 5 Jari (Open Palm 🖐️) dari 21 Landmark Tangan MediaPipe
+ * Dilengkapi pencegahan kesalahan data (anti-clipping tepi layar, anti-motion blur, & validasi sebaran jari).
+ */
+export function detectFiveFingerGesture(
+  handLandmarks: Array<{ x: number; y: number; z?: number }> | null | undefined,
+  prevWrist?: { x: number; y: number } | null
+): FiveFingerGestureResult {
+  if (!Array.isArray(handLandmarks) || handLandmarks.length < 21) {
+    return { isFiveFingers: false, extendedCount: 0, confidence: 0, wrist: null, reason: 'no_hand' };
+  }
+
+  for (let i = 0; i < 21; i++) {
+    const pt = handLandmarks[i];
+    if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) {
+      return { isFiveFingers: false, extendedCount: 0, confidence: 0, wrist: null, reason: 'corrupt_landmark' };
+    }
+    if (pt.x < 0.015 || pt.x > 0.985 || pt.y < 0.015 || pt.y > 0.985) {
+      return { isFiveFingers: false, extendedCount: 0, confidence: 0, wrist: { x: handLandmarks[0].x, y: handLandmarks[0].y }, reason: 'edge_clipped' };
+    }
+  }
+
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  const wrist = { x: handLandmarks[0].x, y: handLandmarks[0].y };
+  const palmSize = dist(handLandmarks[0], handLandmarks[9]);
+
+  // Pencegahan noise jarak terlalu jauh / artefak piksel kecil
+  if (palmSize < 0.022) {
+    return { isFiveFingers: false, extendedCount: 0, confidence: 0, wrist, reason: 'hand_too_small' };
+  }
+
+  // Pencegahan motion blur: tolak bila pergelangan tangan bergerak terlalu cepat antar-frame
+  if (prevWrist && Number.isFinite(prevWrist.x) && Number.isFinite(prevWrist.y)) {
+    const velocity = dist(wrist, prevWrist);
+    if (velocity > palmSize * 0.62) {
+      return { isFiveFingers: false, extendedCount: 0, confidence: 0, wrist, reason: 'hand_moving' };
+    }
+  }
+
+  let extendedCount = 0;
+
+  // 1. Evaluasi Ibu Jari (Thumb: CMC=1, MCP=2, IP=3, TIP=4) terhadap kelingking MCP (17) & pergelangan (0)
+  const dThumbTipPinky = dist(handLandmarks[4], handLandmarks[17]);
+  const dThumbIpPinky = dist(handLandmarks[3], handLandmarks[17]);
+  const dThumbMcpPinky = dist(handLandmarks[2], handLandmarks[17]);
+  const dThumbTipWrist = dist(handLandmarks[4], handLandmarks[0]);
+  const dThumbMcpWrist = dist(handLandmarks[2], handLandmarks[0]);
+  const thumbExtended =
+    dThumbTipPinky > dThumbIpPinky * 1.07 &&
+    dThumbTipPinky > dThumbMcpPinky * 1.18 &&
+    dThumbTipWrist > dThumbMcpWrist * 1.15;
+  if (thumbExtended) extendedCount++;
+
+  // 2. Evaluasi 4 Jari Utama (Index: 5-8, Middle: 9-12, Ring: 13-16, Pinky: 17-20)
+  const fingers: Array<[number, number, number, number]> = [
+    [5, 6, 7, 8],
+    [9, 10, 11, 12],
+    [13, 14, 15, 16],
+    [17, 18, 19, 20],
+  ];
+  for (const [mcp, pip, dip, tip] of fingers) {
+    const dTip = dist(handLandmarks[tip], handLandmarks[0]);
+    const dDip = dist(handLandmarks[dip], handLandmarks[0]);
+    const dPip = dist(handLandmarks[pip], handLandmarks[0]);
+    const dMcp = dist(handLandmarks[mcp], handLandmarks[0]);
+    if (dTip > dPip * 1.14 && dTip > dDip * 1.03 && dPip > dMcp * 1.06) {
+      extendedCount++;
+    }
+  }
+
+  // 3. Validasi Sebaran Jari (Open Palm Spread): ujung jari harus merenggang, bukan menggenggam/menumpuk
+  const totalSpan = dist(handLandmarks[4], handLandmarks[20]);
+  const tipGaps = [
+    dist(handLandmarks[4], handLandmarks[8]),
+    dist(handLandmarks[8], handLandmarks[12]),
+    dist(handLandmarks[12], handLandmarks[16]),
+    dist(handLandmarks[16], handLandmarks[20]),
+  ];
+  const minGap = Math.min(...tipGaps);
+  const spreadOk = totalSpan >= palmSize * 1.10 && minGap >= palmSize * 0.14;
+
+  const isFiveFingers = extendedCount === 5 && spreadOk;
+  const confidence = isFiveFingers
+    ? clamp(Math.round(80 + Math.min(19, (totalSpan / palmSize - 1.1) * 25)), 80, 99)
+    : Math.round((extendedCount / 5) * 65);
+
+  return {
+    isFiveFingers,
+    extendedCount,
+    confidence,
+    wrist,
+    reason: isFiveFingers ? 'valid_five_fingers' : extendedCount === 5 ? 'fingers_not_spread' : `only_${extendedCount}_fingers`,
+  };
+}
+
+/**
+ * Filter Anti-Outlier (Sliding Median + Spike Limiter) untuk mencegah lonjakan data pengukuran kamera
+ */
+export function filterMeasurementSpike(
+  newSample: number,
+  history: number[],
+  maxJumpCm = 6.0,
+  minCm = 36,
+  maxCm = 54
+): { value: number; history: number[]; rejectedSpike: boolean } {
+  if (!Number.isFinite(newSample)) {
+    const fallback = history.length > 0 ? history[history.length - 1] : 45;
+    return { value: clamp(fallback, minCm, maxCm), history, rejectedSpike: true };
+  }
+  const cleanSample = clamp(newSample, minCm, maxCm);
+  if (history.length === 0) {
+    return { value: round1(cleanSample), history: [cleanSample], rejectedSpike: false };
+  }
+
+  const sorted = [...history].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+
+  const diff = cleanSample - median;
+  const rejectedSpike = Math.abs(diff) > maxJumpCm;
+  const accepted = rejectedSpike ? median + Math.sign(diff) * 1.2 : cleanSample;
+
+  const nextHistory = [...history.slice(-8), accepted];
+  const smoothed = median * 0.65 + accepted * 0.35;
+  return {
+    value: round1(clamp(smoothed, minCm, maxCm)),
+    history: nextHistory,
+    rejectedSpike,
+  };
+}
+
+export interface FullBodyFramingReport {
+  tier: 'full_body' | 'three_quarter' | 'upper_body' | 'invalid';
+  isPostureValid: boolean;
+  postureWarning: string | null;
+  torsoLengthRatio: number;
+  hipWidthRatio: number;
+  fullBodyLocked: boolean;
+}
+
+/**
+ * Evaluasi kelengkapan postur seluruh badan (Full-Body) & validasi anatomi untuk mencegah distorsi data
+ */
+export function evaluateFullBodyFraming(
+  lm: Array<{ x: number; y: number; visibility?: number }> | null | undefined
+): FullBodyFramingReport {
+  if (!Array.isArray(lm) || lm.length < 29 || !lm[11] || !lm[12]) {
+    return {
+      tier: 'invalid',
+      isPostureValid: false,
+      postureWarning: 'Berdiri menghadap kamera agar bahu terlihat jelas',
+      torsoLengthRatio: 1.25,
+      hipWidthRatio: 0.88,
+      fullBodyLocked: false,
+    };
+  }
+
+  const vis = (idx: number, min = 0.45) => {
+    const p = lm[idx];
+    return Boolean(
+      p &&
+      Number.isFinite(p.x) &&
+      Number.isFinite(p.y) &&
+      (p.visibility ?? 1) >= min &&
+      p.x >= 0.02 &&
+      p.x <= 0.98 &&
+      p.y >= 0.02 &&
+      p.y <= 0.98
+    );
+  };
+
+  if (!vis(11, 0.45) || !vis(12, 0.45)) {
+    return {
+      tier: 'invalid',
+      isPostureValid: false,
+      postureWarning: 'Pastikan kedua bahu masuk ke dalam bingkai cermin',
+      torsoLengthRatio: 1.25,
+      hipWidthRatio: 0.88,
+      fullBodyLocked: false,
+    };
+  }
+
+  const sMidX = (lm[11].x + lm[12].x) / 2;
+  const sMidY = (lm[11].y + lm[12].y) / 2;
+  const shoulderSpan = Math.hypot(lm[12].x - lm[11].x, lm[12].y - lm[11].y);
+
+  if (shoulderSpan < 0.06) {
+    return {
+      tier: 'invalid',
+      isPostureValid: false,
+      postureWarning: 'Anda terlalu jauh dari kamera — maju sedikit',
+      torsoLengthRatio: 1.25,
+      hipWidthRatio: 0.88,
+      fullBodyLocked: false,
+    };
+  }
+
+  const shoulderSlopeRad = Math.atan2(Math.abs(lm[12].y - lm[11].y), Math.max(0.001, Math.abs(lm[12].x - lm[11].x)));
+  if (shoulderSlopeRad > 0.56) {
+    return {
+      tier: 'upper_body',
+      isPostureValid: false,
+      postureWarning: 'Bahu terlalu miring — tegakkan postur tubuh Anda',
+      torsoLengthRatio: 1.25,
+      hipWidthRatio: 0.88,
+      fullBodyLocked: false,
+    };
+  }
+
+  const hipsVisible = vis(23, 0.45) && vis(24, 0.45);
+  const kneesVisible = vis(25, 0.42) && vis(26, 0.42);
+  const anklesVisible = vis(27, 0.38) && vis(28, 0.38);
+
+  let torsoLengthRatio = 1.25;
+  let hipWidthRatio = 0.88;
+
+  if (hipsVisible) {
+    const hMidX = (lm[23].x + lm[24].x) / 2;
+    const hMidY = (lm[23].y + lm[24].y) / 2;
+    const torsoDy = hMidY - sMidY;
+    const torsoDx = Math.abs(hMidX - sMidX);
+
+    // Pencegahan salah data saat orang membungkuk / duduk
+    if (torsoDy < shoulderSpan * 0.78) {
+      return {
+        tier: 'three_quarter',
+        isPostureValid: false,
+        postureWarning: 'Postur terdeteksi membungkuk/duduk — berdiri tegak untuk akurasi ukuran',
+        torsoLengthRatio: 1.25,
+        hipWidthRatio: 0.88,
+        fullBodyLocked: false,
+      };
+    }
+    if (torsoDx > torsoDy * 0.42) {
+      return {
+        tier: 'three_quarter',
+        isPostureValid: false,
+        postureWarning: 'Tubuh terlalu condong ke samping — berdiri lurus di tengah bingkai',
+        torsoLengthRatio: 1.25,
+        hipWidthRatio: 0.88,
+        fullBodyLocked: false,
+      };
+    }
+
+    torsoLengthRatio = clamp(torsoDy / shoulderSpan, 0.95, 1.75);
+    const hipSpan = Math.hypot(lm[24].x - lm[23].x, lm[24].y - lm[23].y);
+    hipWidthRatio = clamp(hipSpan / shoulderSpan, 0.68, 1.25);
+  }
+
+  const tier: FullBodyFramingReport['tier'] =
+    hipsVisible && (kneesVisible || anklesVisible)
+      ? 'full_body'
+      : hipsVisible
+        ? 'three_quarter'
+        : 'upper_body';
+
+  return {
+    tier,
+    isPostureValid: true,
+    postureWarning: null,
+    torsoLengthRatio: round1(torsoLengthRatio),
+    hipWidthRatio: round1(hipWidthRatio),
+    fullBodyLocked: tier === 'full_body' || tier === 'three_quarter',
+  };
+}
+
+
