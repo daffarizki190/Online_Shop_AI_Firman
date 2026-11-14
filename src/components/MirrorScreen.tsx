@@ -1,6 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CATALOG, prod } from '../data';
-import { detectSkinToneFromRGB, scoreColorHarmony, SKIN_TONES } from '../engine';
+import {
+  detectFiveFingerGesture,
+  detectSkinToneFromRGB,
+  evaluateFullBodyFraming,
+  filterMeasurementSpike,
+  scoreColorHarmony,
+  SKIN_TONES,
+} from '../engine';
 import { useApp, inStock, STORE } from '../store';
 import type { SkinToneId } from '../types';
 import { Subbar } from '../ui';
@@ -18,23 +25,68 @@ const MIRROR_COLORS: Record<string, string> = {
 };
 const MP_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 
+function playTone(freq = 880, durationSec = 0.08) {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + durationSec);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + durationSec);
+    setTimeout(() => { try { ctx.close(); } catch { /* ignore */ } }, durationSec * 1000 + 80);
+  } catch { /* audio dibatasi browser */ }
+}
+
 export default function MirrorScreen() {
-  const { s, set, goto, ensureResult } = useApp();
+  const { s, set, ensureResult, toast } = useApp();
   const p = prod(s.mirrorSku || s.currentSku);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const lmRef = useRef<any>(null);
+  const handLmRef = useRef<any>(null);
   const landmarkerRef = useRef<any>(null);
+  const handLandmarkerRef = useRef<any>(null);
   const rafRef = useRef(0);
   const lastT = useRef(-1);
   const trackingRef = useRef(false);
   const onRef = useRef(false);
-  const smoothRef = useRef({ cx: 0, cy: 0, shoulderPx: 0, angle: 0, initialized: false });
+  const smoothRef = useRef({ cx: 0, cy: 0, shoulderPx: 0, scaleYRatio: 1, angle: 0, initialized: false });
   const measuredShoulderRef = useRef<number | null>(null);
+  const shoulderHistoryRef = useRef<number[]>([]);
+  const validFrameStreakRef = useRef(0);
   const sampleCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameCountRef = useRef(0);
   const rgbSmoothRef = useRef({ r: 210, g: 165, b: 130, initialized: false });
+
+  // Mode Kamera (user = depan, environment = belakang) & Mode Tampilan (full_body = seluruh badan 9:16, half_body = 3:4)
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+  const facingRef = useRef<'user' | 'environment'>('user');
+  const [bodyMode, setBodyMode] = useState<'full_body' | 'half_body'>('full_body');
+  const bodyModeRef = useRef<'full_body' | 'half_body'>('full_body');
+
+  // Gestur 5 Jari & Countdown Auto-Capture
+  const [gestureEnabled, setGestureEnabled] = useState(true);
+  const gestureEnabledRef = useRef(true);
+  const prevWristRef = useRef<{ x: number; y: number } | null>(null);
+  const fiveFingerStreakRef = useRef(0);
+  const lastCaptureAtRef = useRef(0);
+  const countdownTimerRef = useRef<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<number | null>(null);
+  const [flash, setFlash] = useState(false);
+  const [gestureHoldPct, setGestureHoldPct] = useState(0);
+  const gestureHoldRef = useRef(0);
+  const [dataIntegrityNote, setDataIntegrityNote] = useState<string>('Data Tervalidasi AI ✓');
+  const dataNoteRef = useRef('Data Tervalidasi AI ✓');
+
   const [detectedSkin, setDetectedSkin] = useState<SkinToneId | null>(null);
   const [fallback, setFallback] = useState(false);
   const [hud, setHud] = useState({ status: 'Menyiapkan kamera…', shoulder: 'Bahu: —', fit: '', ok: false, warn: false });
@@ -57,6 +109,20 @@ export default function MirrorScreen() {
     }
   };
 
+  const updateDataNote = (note: string) => {
+    if (dataNoteRef.current !== note) {
+      dataNoteRef.current = note;
+      setDataIntegrityNote(note);
+    }
+  };
+
+  const updateGestureHold = (pct: number) => {
+    if (gestureHoldRef.current !== pct) {
+      gestureHoldRef.current = pct;
+      setGestureHoldPct(pct);
+    }
+  };
+
   const sizes: string[] = p.sizes.map((x) => x.size_label as string).filter((l) => inStock(p.sku_id, l));
   const r = s.profile ? ensureResult(p.sku_id) : null;
   const def: string = ((r && sizes.includes(r.best.size_label) ? r.best.size_label : null)
@@ -64,20 +130,41 @@ export default function MirrorScreen() {
     || sizes[Math.min(1, sizes.length - 1)]) as string;
   const mirrorSize = sizes.includes(s.mirrorSize || '') ? s.mirrorSize! : def!;
 
+  const cancelCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+    countdownRef.current = null;
+    setCountdown(null);
+    fiveFingerStreakRef.current = 0;
+    updateGestureHold(0);
+  };
+
   const stop = () => {
     onRef.current = false;
+    cancelCountdown();
     cancelAnimationFrame(rafRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     try { landmarkerRef.current?.close(); } catch { /* ignore */ }
-    streamRef.current = null; landmarkerRef.current = null; lmRef.current = null; trackingRef.current = false;
+    try { handLandmarkerRef.current?.close(); } catch { /* ignore */ }
+    streamRef.current = null;
+    landmarkerRef.current = null;
+    handLandmarkerRef.current = null;
+    lmRef.current = null;
+    handLmRef.current = null;
+    trackingRef.current = false;
     smoothRef.current.initialized = false;
   };
 
+  // Konversi koordinat ternormalisasi MediaPipe ke kanvas (memperhitungkan efek mirror kamera depan vs non-mirror kamera belakang)
   const lmToCanvas = (lm: any, canvas: HTMLCanvasElement, video: HTMLVideoElement) => {
     const vw = video.videoWidth || 640, vh = video.videoHeight || 480;
     const scale = Math.max(canvas.width / vw, canvas.height / vh);
     const dw = vw * scale, dh = vh * scale;
-    return { x: (canvas.width - dw) / 2 + (1 - lm.x) * dw, y: (canvas.height - dh) / 2 + lm.y * dh };
+    const isFrontMirrored = facingRef.current === 'user';
+    const normX = isFrontMirrored ? (1 - lm.x) : lm.x;
+    return { x: (canvas.width - dw) / 2 + normX * dw, y: (canvas.height - dh) / 2 + lm.y * dh };
   };
 
   const draw = () => {
@@ -92,17 +179,64 @@ export default function MirrorScreen() {
     const shape = new Path2D(MIRROR_SHAPES[SHAPE_BY_CAT[p.category] || 'tee']);
     const color = MIRROR_COLORS[p.variant] || '#2E2E33';
     const lm = lmRef.current;
-    const lmOk = lm && lm[11] && lm[12] && lm[11].visibility > 0.45 && lm[12].visibility > 0.45;
-    let cx: number, cy: number, shoulderPx: number, angle = 0;
+    const framing = evaluateFullBodyFraming(lm);
+    const lmOk = framing.tier !== 'invalid' && lm && lm[11] && lm[12];
+    let cx: number, cy: number, shoulderPx: number, scaleYRatio = 1, angle = 0;
+
+    // Panduan Bingkai Seluruh Badan (Full-Body Framing Guide) saat mode seluruh badan aktif
+    if (bodyModeRef.current === 'full_body') {
+      ctx.save();
+      const padX = W * 0.12;
+      const topY = H * 0.07;
+      const botY = H * 0.78;
+      const corner = Math.min(W, H) * 0.055;
+      ctx.strokeStyle = framing.fullBodyLocked ? 'rgba(125, 216, 168, 0.55)' : 'rgba(250, 249, 246, 0.32)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      // Sudut kiri-atas & kanan-atas
+      ctx.moveTo(padX, topY + corner); ctx.lineTo(padX, topY); ctx.lineTo(padX + corner, topY);
+      ctx.moveTo(W - padX - corner, topY); ctx.lineTo(W - padX, topY); ctx.lineTo(W - padX, topY + corner);
+      // Sudut kiri-bawah & kanan-bawah
+      ctx.moveTo(padX, botY - corner); ctx.lineTo(padX, botY); ctx.lineTo(padX + corner, botY);
+      ctx.moveTo(W - padX - corner, botY); ctx.lineTo(W - padX, botY); ctx.lineTo(W - padX, botY - corner);
+      ctx.stroke();
+
+      // Titik skeleton kaki/pinggul saat seluruh badan terkunci
+      if (lmOk && framing.fullBodyLocked) {
+        const joints = [23, 24, 25, 26, 27, 28].filter((idx) => lm[idx] && (lm[idx].visibility ?? 0) > 0.4);
+        ctx.fillStyle = 'rgba(125, 216, 168, 0.78)';
+        for (const idx of joints) {
+          const pt = lmToCanvas(lm[idx], canvas, video);
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
 
     if (lmOk) {
-      // Patokan murni kedua sisi bahu: landmark 11 (bahu kiri) dan landmark 12 (bahu kanan)
-      const sL = lmToCanvas(lm[11], canvas, video);
-      const sR = lmToCanvas(lm[12], canvas, video);
+      // Pencegahan salah orientasi (kamera depan vs belakang / balik badan): urutkan bahu kiri-layar ke kanan-layar
+      const p11 = lmToCanvas(lm[11], canvas, video);
+      const p12 = lmToCanvas(lm[12], canvas, video);
+      const sL = p11.x <= p12.x ? p11 : p12;
+      const sR = p11.x <= p12.x ? p12 : p11;
       const rawShoulderPx = Math.hypot(sR.x - sL.x, sR.y - sL.y);
       const rawCx = (sL.x + sR.x) / 2;
       const rawCy = (sL.y + sR.y) / 2;
-      const rawAngle = Math.atan2(sR.y - sL.y, sR.x - sL.x);
+      const rawAngle = Math.max(-0.52, Math.min(0.52, Math.atan2(sR.y - sL.y, Math.max(1, sR.x - sL.x))));
+
+      // Kalibrasi panjang baju ke garis pinggul asli (lm[23], lm[24]) saat berdiri agak jauh (Full-Body / Three-Quarter)
+      let rawScaleYRatio = 1;
+      if (framing.fullBodyLocked && lm[23] && lm[24]) {
+        const h23 = lmToCanvas(lm[23], canvas, video);
+        const h24 = lmToCanvas(lm[24], canvas, video);
+        const hipMidY = (h23.y + h24.y) / 2;
+        const hipDistPx = Math.max(20, hipMidY - rawCy);
+        const baseScale = (rawShoulderPx * 1.28) / 440;
+        const expectedHemPx = 543 * baseScale;
+        rawScaleYRatio = Math.max(0.84, Math.min(1.26, (hipDistPx * 1.08) / Math.max(1, expectedHemPx)));
+      }
 
       // Filter Low-Pass / Exponential Moving Average (EMA) agar fitting stabil & tidak jitter saat bergerak
       const sm = smoothRef.current;
@@ -110,13 +244,15 @@ export default function MirrorScreen() {
         sm.cx = rawCx;
         sm.cy = rawCy;
         sm.shoulderPx = rawShoulderPx;
+        sm.scaleYRatio = rawScaleYRatio;
         sm.angle = rawAngle;
         sm.initialized = true;
       } else {
-        const alpha = 0.32;
+        const alpha = 0.30;
         sm.cx += (rawCx - sm.cx) * alpha;
         sm.cy += (rawCy - sm.cy) * alpha;
         sm.shoulderPx += (rawShoulderPx - sm.shoulderPx) * alpha;
+        sm.scaleYRatio += (rawScaleYRatio - sm.scaleYRatio) * alpha;
         let diffA = rawAngle - sm.angle;
         while (diffA < -Math.PI) diffA += Math.PI * 2;
         while (diffA > Math.PI) diffA -= Math.PI * 2;
@@ -125,12 +261,14 @@ export default function MirrorScreen() {
       cx = sm.cx;
       cy = sm.cy;
       shoulderPx = sm.shoulderPx;
+      scaleYRatio = sm.scaleYRatio;
       angle = sm.angle;
     } else {
       smoothRef.current.initialized = false;
-      shoulderPx = W * 0.46;
+      shoulderPx = bodyModeRef.current === 'full_body' ? W * 0.28 : W * 0.44;
       cx = W / 2;
-      cy = H * 0.40;
+      cy = bodyModeRef.current === 'full_body' ? H * 0.28 : H * 0.40;
+      scaleYRatio = 1;
       angle = 0;
     }
 
@@ -147,7 +285,7 @@ export default function MirrorScreen() {
     // Anchor di titik tengah sendi bahu (cx, cy) lalu diangkat ke puncak trapezius/pangkal leher (-392 pada ruang SVG)
     ctx.translate(cx, cy);
     ctx.rotate(angle);
-    ctx.scale(scale, scale);
+    ctx.scale(scale, scale * scaleYRatio);
     ctx.translate(-448, -392);
 
     // 1. Bayangan belakang kerah (inner back-neck depth) agar tampak membungkus leher secara 3D
@@ -175,7 +313,6 @@ export default function MirrorScreen() {
     ctx.save();
     ctx.clip(shape);
 
-    // Pencahayaan dada silindris (terang lembut di dada atas, bayangan halus di tepi samping tubuh)
     const torsoGrad = ctx.createLinearGradient(260, 340, 636, 340);
     torsoGrad.addColorStop(0, 'rgba(0, 0, 0, 0.28)');
     torsoGrad.addColorStop(0.22, 'rgba(255, 255, 255, 0.06)');
@@ -185,7 +322,6 @@ export default function MirrorScreen() {
     ctx.fillStyle = torsoGrad;
     ctx.fillRect(100, 300, 700, 680);
 
-    // Gradasi vertikal dari bahu ke bawah hem
     const vertGrad = ctx.createLinearGradient(448, 310, 448, 950);
     vertGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
     vertGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0)');
@@ -193,7 +329,6 @@ export default function MirrorScreen() {
     ctx.fillStyle = vertGrad;
     ctx.fillRect(100, 300, 700, 680);
 
-    // Lipatan natural (drape folds) di sekitar ketiak & dada samping
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
     ctx.lineWidth = 6;
     ctx.lineCap = 'round';
@@ -204,7 +339,6 @@ export default function MirrorScreen() {
     ctx.quadraticCurveTo(594, 560, 600, 670);
     ctx.stroke();
 
-    // Jahitan drop-shoulder (seam bahu kiri & kanan)
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
@@ -240,7 +374,6 @@ export default function MirrorScreen() {
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.20)';
     ctx.stroke();
 
-    // Garis jahitan atas & bawah kerah rib
     ctx.beginPath();
     ctx.moveTo(355, 313);
     ctx.quadraticCurveTo(448, 372, 541, 313);
@@ -258,11 +391,57 @@ export default function MirrorScreen() {
 
     ctx.restore();
 
+    // Visualisasi Indikator Gestur 5 Jari (Open Palm 🖐️) di atas kanvas
+    const hands = handLmRef.current;
+    if (gestureEnabledRef.current && Array.isArray(hands) && hands.length > 0) {
+      for (const hLm of hands) {
+        const gRes = detectFiveFingerGesture(hLm, null);
+        if (gRes.extendedCount >= 4 && hLm[9]) {
+          const palmPt = lmToCanvas(hLm[9], canvas, video);
+          ctx.save();
+          ctx.strokeStyle = gRes.isFiveFingers ? '#7DD8A8' : 'rgba(255, 210, 110, 0.8)';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.arc(palmPt.x, palmPt.y, 28, 0, Math.PI * 2);
+          ctx.stroke();
+          for (const tipIdx of [4, 8, 12, 16, 20]) {
+            if (hLm[tipIdx]) {
+              const tPt = lmToCanvas(hLm[tipIdx], canvas, video);
+              ctx.fillStyle = gRes.isFiveFingers ? '#7DD8A8' : '#FFD26E';
+              ctx.beginPath();
+              ctx.arc(tPt.x, tPt.y, 4.5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          ctx.restore();
+        }
+      }
+    }
+
     const next: typeof hud = { ...hudRef.current, ok: false, warn: false };
     if (lmOk) {
-      next.status = trackingRef.current ? 'Terkunci ✓ — diproses di perangkat Anda' : 'Cermin manual';
+      validFrameStreakRef.current = Math.min(60, validFrameStreakRef.current + 1);
+      if (!framing.isPostureValid && framing.postureWarning) {
+        next.status = `⚠️ ${framing.postureWarning}`;
+        next.warn = true;
+        updateDataNote(`Data Ditahan: ${framing.postureWarning}`);
+      } else if (bodyModeRef.current === 'full_body' && framing.tier === 'upper_body') {
+        next.status = 'Mundur ±1.5–2 m agar seluruh badan masuk bingkai';
+        updateDataNote('Mode Seluruh Badan: mundur sedikit agar pinggul & kaki terdeteksi');
+      } else {
+        next.status = framing.tier === 'full_body'
+          ? 'Seluruh Badan Terkunci ✓ — diproses di perangkat Anda'
+          : trackingRef.current
+            ? 'Terkunci ✓ — diproses di perangkat Anda'
+            : 'Cermin manual';
+        updateDataNote(
+          validFrameStreakRef.current >= 6
+            ? `Data Tervalidasi AI ✓ (${framing.tier === 'full_body' ? 'Full-Body' : 'Upper-Body'} · Bebas Outlier)`
+            : 'Mengumpulkan sampel stabil…'
+        );
+      }
 
-      // Deteksi rona kulit wajah otomatis (CIELAB / ITA°) setiap 25 frame dari landmark wajah (lm[0])
+      // Deteksi rona kulit wajah otomatis (CIELAB / ITA°) dilengkapi Filter Anti-Silau & Anti-Bayangan
       frameCountRef.current += 1;
       if (frameCountRef.current % 25 === 0 && lm[0] && lm[0].visibility > 0.55 && video.videoWidth > 0) {
         try {
@@ -281,17 +460,21 @@ export default function MirrorScreen() {
             let rSum = 0, gSum = 0, bSum = 0, count = 0;
             for (let i = 0; i < data.length; i += 4) {
               const pr = data[i], pg = data[i + 1], pb = data[i + 2];
-              if (pr > 45 && pr < 248 && pr > pb) { rSum += pr; gSum += pg; bSum += pb; count++; }
+              const luma = 0.299 * pr + 0.587 * pg + 0.114 * pb;
+              // Guard pencahayaan: tolak piksel terlalu gelap (<50) atau silau/blown-out (>240)
+              if (luma >= 50 && luma <= 240 && pr > pb && pr > 52) {
+                rSum += pr; gSum += pg; bSum += pb; count++;
+              }
             }
-            if (count >= 16) {
+            if (count >= 18) {
               const avgR = rSum / count, avgG = gSum / count, avgB = bSum / count;
               const smRgb = rgbSmoothRef.current;
               if (!smRgb.initialized) {
                 smRgb.r = avgR; smRgb.g = avgG; smRgb.b = avgB; smRgb.initialized = true;
               } else {
-                smRgb.r = smRgb.r * 0.7 + avgR * 0.3;
-                smRgb.g = smRgb.g * 0.7 + avgG * 0.3;
-                smRgb.b = smRgb.b * 0.7 + avgB * 0.3;
+                smRgb.r = smRgb.r * 0.72 + avgR * 0.28;
+                smRgb.g = smRgb.g * 0.72 + avgG * 0.28;
+                smRgb.b = smRgb.b * 0.72 + avgB * 0.28;
               }
               const spec = detectSkinToneFromRGB(smRgb.r, smRgb.g, smRgb.b);
               setDetectedSkin((prev) => (prev === spec.id ? prev : spec.id));
@@ -300,107 +483,281 @@ export default function MirrorScreen() {
         } catch { /* abaikan bila canvas tainted */ }
       }
 
-      // Kalibrasi Lebar Bahu Multi-Referensi (Akurat untuk Close-Up Selfie maupun Full-Body)
-      // Catatan anatomi: lm[11]-lm[12] adalah pusat sendi glenohumeral dalam; lebar bahu jahitan (acromion-deltoid) = ~1.34x jarak sendi.
-      const heightCm = Number(s.profile?.metrics.height_cm) || 170;
-      const profileShoulderCm = Number((s.profile?.metrics as any)?.shoulder_cm) || (heightCm * 0.264);
-      const estimates: number[] = [];
+      // Kalibrasi Lebar Bahu Multi-Referensi + Pencegahan Kesalahan Data (Hanya update bila postur valid!)
+      const heightCm = Math.max(135, Math.min(215, Number(s.profile?.metrics.height_cm) || 170));
+      const profileShoulderCm = Math.max(36, Math.min(54, Number((s.profile?.metrics as any)?.shoulder_cm) || (heightCm * 0.264)));
 
-      // Referensi 1: Lebar kranial antar-telinga (lm[7] - lm[8]) -> konversi ke lebar bahu jahitan (faktor 24.1x termasuk koreksi perspektif selfie)
-      if (lm[7] && lm[8] && (lm[7].visibility ?? 1) > 0.35 && (lm[8].visibility ?? 1) > 0.35) {
-        const eL = lmToCanvas(lm[7], canvas, video);
-        const eR = lmToCanvas(lm[8], canvas, video);
-        const earDistPx = Math.hypot(eR.x - eL.x, eR.y - eL.y);
-        if (earDistPx > 18) {
-          estimates.push((shoulderPx / earDistPx) * 24.1 * (heightCm / 170));
+      if (framing.isPostureValid) {
+        const estimates: number[] = [];
+
+        // Referensi 1: Lebar kranial antar-telinga (lm[7] - lm[8])
+        if (lm[7] && lm[8] && (lm[7].visibility ?? 1) > 0.35 && (lm[8].visibility ?? 1) > 0.35) {
+          const eL = lmToCanvas(lm[7], canvas, video);
+          const eR = lmToCanvas(lm[8], canvas, video);
+          const earDistPx = Math.hypot(eR.x - eL.x, eR.y - eL.y);
+          if (earDistPx > 14) {
+            estimates.push((shoulderPx / earDistPx) * 24.1 * (heightCm / 170));
+          }
         }
-      }
 
-      // Referensi 2: Jarak mata-ke-mulut (lm[2,5] ke lm[9,10]) -> stabil saat close-up (faktor 9.45x ke lebar bahu jahitan)
-      if (lm[2] && lm[5] && lm[9] && lm[10]) {
-        const eyeL = lmToCanvas(lm[2], canvas, video);
-        const eyeR = lmToCanvas(lm[5], canvas, video);
-        const mouthL = lmToCanvas(lm[9], canvas, video);
-        const mouthR = lmToCanvas(lm[10], canvas, video);
-        const eyeMid = { x: (eyeL.x + eyeR.x) / 2, y: (eyeL.y + eyeR.y) / 2 };
-        const mouthMid = { x: (mouthL.x + mouthR.x) / 2, y: (mouthL.y + mouthR.y) / 2 };
-        const eyeToMouthPx = Math.hypot(mouthMid.x - eyeMid.x, mouthMid.y - eyeMid.y);
-        if (eyeToMouthPx > 12) {
-          estimates.push((shoulderPx / eyeToMouthPx) * 9.45 * (heightCm / 170));
+        // Referensi 2: Jarak mata-ke-mulut (lm[2,5] ke lm[9,10])
+        if (lm[2] && lm[5] && lm[9] && lm[10]) {
+          const eyeL = lmToCanvas(lm[2], canvas, video);
+          const eyeR = lmToCanvas(lm[5], canvas, video);
+          const mouthL = lmToCanvas(lm[9], canvas, video);
+          const mouthR = lmToCanvas(lm[10], canvas, video);
+          const eyeMid = { x: (eyeL.x + eyeR.x) / 2, y: (eyeL.y + eyeR.y) / 2 };
+          const mouthMid = { x: (mouthL.x + mouthR.x) / 2, y: (mouthL.y + mouthR.y) / 2 };
+          const eyeToMouthPx = Math.hypot(mouthMid.x - eyeMid.x, mouthMid.y - eyeMid.y);
+          if (eyeToMouthPx > 10) {
+            estimates.push((shoulderPx / eyeToMouthPx) * 9.45 * (heightCm / 170));
+          }
         }
+
+        // Referensi 3: Torso / Full-body bila berdiri agak jauh (pinggul lm[24] atau pergelangan kaki lm[28] terlihat)
+        if (lm[28] && lm[28].visibility > 0.5) {
+          const bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
+          if (bodyPx > shoulderPx * 2.2) estimates.push(((shoulderPx * 1.32) / bodyPx) * (heightCm * 0.90));
+        } else if (lm[24] && lm[24].visibility > 0.5) {
+          const torsoPx = Math.abs(cy - lmToCanvas(lm[24], canvas, video).y);
+          if (torsoPx > shoulderPx * 0.90) estimates.push(((shoulderPx * 1.32) / torsoPx) * (heightCm * 0.30));
+        }
+
+        const validEstimates = estimates.filter((v) => Number.isFinite(v) && v >= 34 && v <= 58);
+        const rawCameraShoulder = validEstimates.length > 0
+          ? validEstimates.reduce((a, b) => a + b, 0) / validEstimates.length
+          : profileShoulderCm;
+
+        const fusedShoulder = s.profile
+          ? rawCameraShoulder * 0.62 + profileShoulderCm * 0.38
+          : rawCameraShoulder * 0.74 + profileShoulderCm * 0.26;
+
+        // Filter Anti-Spike (Sliding Median) untuk menolak lonjakan 1-frame yang tidak wajar
+        const filtered = filterMeasurementSpike(fusedShoulder, shoulderHistoryRef.current, 5.5, 37, 53);
+        shoulderHistoryRef.current = filtered.history;
+        const prevMeasured = measuredShoulderRef.current ?? filtered.value;
+        const shoulderCm = prevMeasured * 0.80 + filtered.value * 0.20;
+        measuredShoulderRef.current = Math.round(shoulderCm * 10) / 10;
       }
 
-      // Referensi 3: Torso / Full-body bila berdiri agak jauh (pinggul lm[24] atau pergelangan kaki lm[28] terlihat)
-      if (lm[28] && lm[28].visibility > 0.5) {
-        const bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
-        if (bodyPx > shoulderPx * 2.2) estimates.push(((shoulderPx * 1.32) / bodyPx) * (heightCm * 0.90));
-      } else if (lm[24] && lm[24].visibility > 0.5) {
-        const torsoPx = Math.abs(cy - lmToCanvas(lm[24], canvas, video).y);
-        if (torsoPx > shoulderPx * 0.95) estimates.push(((shoulderPx * 1.32) / torsoPx) * (heightCm * 0.30));
-      }
-
-      const rawCameraShoulder = estimates.length > 0
-        ? estimates.reduce((a, b) => a + b, 0) / estimates.length
-        : profileShoulderCm;
-
-      // Sensor Fusion: gabungkan pengamatan kamera dengan baseline antropometri profil agar tidak melompat ekstrem
-      const fusedShoulder = s.profile
-        ? rawCameraShoulder * 0.60 + profileShoulderCm * 0.40
-        : rawCameraShoulder * 0.72 + profileShoulderCm * 0.28;
-      const clampedShoulder = Math.max(38, Math.min(52, fusedShoulder));
-      const prevMeasured = measuredShoulderRef.current ?? clampedShoulder;
-      const shoulderCm = prevMeasured * 0.82 + clampedShoulder * 0.18;
-      measuredShoulderRef.current = Math.round(shoulderCm * 10) / 10;
-
+      const activeShoulderCm = measuredShoulderRef.current ?? profileShoulderCm;
       const sz = p.sizes.find((x) => x.size_label === mirrorSize);
       const eff = (sz?.shoulder_width_cm || 46) * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100);
-      const diff = eff - shoulderCm;
-      next.shoulder = `Bahu Anda ±${Math.round(shoulderCm)} cm`;
+      const diff = eff - activeShoulderCm;
+      next.shoulder = `Bahu Anda ±${Math.round(activeShoulderCm)} cm`;
       if (diff >= -2.5 && diff <= 3.5) { next.fit = `Size ${mirrorSize} ✓ Pas di bahu`; next.ok = true; }
       else if (diff < -2.5) { next.fit = `Size ${mirrorSize} agak ketat`; next.warn = true; }
       else next.fit = `Size ${mirrorSize} agak longgar`;
 
-      // Cari ukuran terbaik berdasarkan lebar bahu terukur di kamera (target boxy ease +1.5 cm)
       const camBest = p.sizes
         .filter((x) => inStock(p.sku_id, x.size_label))
         .map((x) => ({ l: x.size_label, eff: x.shoulder_width_cm * (1 - (p.fabric_specs.shrinkage_after_wash_pct || 0) / 100) }))
-        .sort((a, b) => Math.abs(a.eff - shoulderCm - 1.5) - Math.abs(b.eff - shoulderCm - 1.5))[0];
+        .sort((a, b) => Math.abs(a.eff - activeShoulderCm - 1.5) - Math.abs(b.eff - activeShoulderCm - 1.5))[0];
       const profileBest = r ? (r.isBestOutOfStock && r.bestInStock ? r.bestInStock.size_label : r.best.size_label) : null;
       const sugLabel = (!next.ok && camBest && camBest.l !== mirrorSize)
         ? camBest.l
         : (profileBest && profileBest !== mirrorSize ? profileBest : camBest?.l);
       if (sugLabel && sugLabel !== mirrorSize) next.fit += ` → AI: ${sugLabel}`;
     } else {
-      next.status = trackingRef.current ? 'Mengunci tubuh… jaga jarak ±1–2 m' : 'Cermin manual — AI belum aktif';
+      validFrameStreakRef.current = 0;
+      next.status = trackingRef.current
+        ? (bodyModeRef.current === 'full_body' ? 'Mengunci seluruh badan… berdiri ±1.5–2.5 m' : 'Mengunci tubuh… jaga jarak ±1–2 m')
+        : 'Cermin manual — AI belum aktif';
       next.shoulder = 'Bahu: mengunci…';
       next.fit = `Size ${mirrorSize}`;
+      updateDataNote('Menunggu deteksi tubuh masuk ke dalam bingkai…');
     }
     updateHud(next);
+  };
+
+  const capture = (fromGesture = false) => {
+    const video = videoRef.current, canvas = canvasRef.current;
+    if (!video || !video.videoWidth || !canvas || !canvas.width) return;
+
+    // Pencegahan kesalahan data saat auto-capture gestur: pastikan subjek masih di dalam bingkai & postur valid
+    if (fromGesture && trackingRef.current) {
+      const check = evaluateFullBodyFraming(lmRef.current);
+      if (check.tier === 'invalid' || !check.isPostureValid) {
+        toast(`⚠️ Foto dibatalkan otomatis: ${check.postureWarning || 'Subjek keluar dari bingkai'}`);
+        return;
+      }
+    }
+
+    playTone(1320, 0.14);
+    setFlash(true);
+    setTimeout(() => setFlash(false), 260);
+
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const ctx = out.getContext('2d')!;
+    const scale = Math.max(out.width / video.videoWidth, out.height / video.videoHeight);
+    const dw = video.videoWidth * scale, dh = video.videoHeight * scale;
+
+    ctx.save();
+    if (facingRef.current === 'user') {
+      ctx.translate(out.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
+    ctx.restore();
+    ctx.drawImage(canvas, 0, 0);
+
+    // Label metadata tervalidasi di sudut bawah foto
+    const shCm = Math.round(measuredShoulderRef.current || 45);
+    ctx.save();
+    ctx.fillStyle = 'rgba(18, 18, 18, 0.72)';
+    const badgeH = Math.max(26, Math.round(out.height * 0.038));
+    ctx.fillRect(0, out.height - badgeH, out.width, badgeH);
+    ctx.fillStyle = '#FAF9F6';
+    ctx.font = `600 ${Math.max(11, Math.round(badgeH * 0.44))}px sans-serif`;
+    ctx.fillText(
+      `Aura Atelier Cermin AI · ${p.name} (${p.variant} · Size ${mirrorSize}) · Bahu ±${shCm} cm · Kulit ${colorHarmony.skinTone.shortLabel}`,
+      12,
+      out.height - Math.round(badgeH * 0.32)
+    );
+    ctx.restore();
+
+    set({ sheet: 'foto', param: out.toDataURL('image/png') } as any);
+  };
+
+  const triggerGestureCountdown = () => {
+    if (countdownRef.current !== null) return;
+    if (Date.now() - lastCaptureAtRef.current < 4500) return;
+
+    fiveFingerStreakRef.current = 0;
+    updateGestureHold(0);
+    countdownRef.current = 3;
+    setCountdown(3);
+    playTone(880, 0.08);
+
+    countdownTimerRef.current = window.setInterval(() => {
+      const cur = countdownRef.current;
+      if (cur === null) {
+        cancelCountdown();
+        return;
+      }
+      if (cur > 1) {
+        const nextVal = cur - 1;
+        countdownRef.current = nextVal;
+        setCountdown(nextVal);
+        playTone(880, 0.08);
+      } else {
+        cancelCountdown();
+        lastCaptureAtRef.current = Date.now();
+        capture(true);
+      }
+    }, 950);
   };
 
   const loop = () => {
     if (!onRef.current) return;
     const video = videoRef.current;
-    if (trackingRef.current && landmarkerRef.current && video && video.readyState >= 2 && video.currentTime !== lastT.current) {
+    if (trackingRef.current && video && video.readyState >= 2 && video.currentTime !== lastT.current) {
       lastT.current = video.currentTime;
+      const now = performance.now();
       try {
-        const res = landmarkerRef.current.detectForVideo(video, performance.now());
-        lmRef.current = res?.landmarks?.[0] || null;
-      } catch { /* frame dilewati */ }
+        if (landmarkerRef.current) {
+          const res = landmarkerRef.current.detectForVideo(video, now);
+          lmRef.current = res?.landmarks?.[0] || null;
+        }
+      } catch { /* frame pose dilewati */ }
+
+      // Deteksi Gestur 5 Jari (Open Palm 🖐️) untuk Auto-Foto saat berdiri agak jauh
+      if (
+        gestureEnabledRef.current &&
+        countdownRef.current === null &&
+        Date.now() - lastCaptureAtRef.current >= 4500 &&
+        handLandmarkerRef.current &&
+        frameCountRef.current % 2 === 0
+      ) {
+        try {
+          const hRes = handLandmarkerRef.current.detectForVideo(video, now + 0.1);
+          const hands: any[] = hRes?.landmarks || [];
+          handLmRef.current = hands;
+
+          let matchedFive = false;
+          for (const hLm of hands) {
+            const check = detectFiveFingerGesture(hLm, prevWristRef.current);
+            if (check.wrist) prevWristRef.current = check.wrist;
+            if (check.isFiveFingers) {
+              matchedFive = true;
+              break;
+            }
+          }
+
+          // Fallback jarak jauh (>2.2 m): bila Pose mendeteksi telapak tangan diangkat setinggi bahu/kepala secara stabil
+          if (!matchedFive && hands.length === 0 && lmRef.current) {
+            const plm = lmRef.current;
+            const checkPoseHand = (wIdx: number, pIdx: number, iIdx: number, tIdx: number, sIdx: number) => {
+              const w = plm[wIdx], pk = plm[pIdx], ix = plm[iIdx], th = plm[tIdx], sh = plm[sIdx];
+              if (!w || !pk || !ix || !th || !sh) return false;
+              if ((w.visibility ?? 0) < 0.65 || (pk.visibility ?? 0) < 0.55 || (ix.visibility ?? 0) < 0.55) return false;
+              // Tangan harus diangkat jelas di atas garis bahu/dada atas & terbuka lebar
+              const raised = w.y < sh.y + 0.05 && w.y > 0.04;
+              const spread = Math.hypot(pk.x - th.x, pk.y - th.y);
+              const prevW = prevWristRef.current;
+              const steady = !prevW || Math.hypot(w.x - prevW.x, w.y - prevW.y) < 0.025;
+              if (raised && spread > 0.032 && steady) {
+                prevWristRef.current = { x: w.x, y: w.y };
+                return true;
+              }
+              return false;
+            };
+            if (checkPoseHand(15, 17, 19, 21, 11) || checkPoseHand(16, 18, 20, 22, 12)) {
+              matchedFive = true;
+            }
+          }
+
+          if (matchedFive) {
+            fiveFingerStreakRef.current = Math.min(6, fiveFingerStreakRef.current + 1);
+            updateGestureHold(Math.min(100, Math.round((fiveFingerStreakRef.current / 5) * 100)));
+            if (fiveFingerStreakRef.current >= 5) {
+              triggerGestureCountdown();
+            }
+          } else {
+            fiveFingerStreakRef.current = Math.max(0, fiveFingerStreakRef.current - 1);
+            updateGestureHold(Math.round((fiveFingerStreakRef.current / 5) * 100));
+          }
+        } catch { /* frame hand dilewati */ }
+      } else if (!gestureEnabledRef.current) {
+        handLmRef.current = null;
+        fiveFingerStreakRef.current = 0;
+        updateGestureHold(0);
+      }
     }
     draw();
     rafRef.current = requestAnimationFrame(loop);
   };
 
-  const start = async () => {
-    if (onRef.current) return;
+  const start = async (overrideFacing?: 'user' | 'environment') => {
+    if (onRef.current) stop();
     onRef.current = true;
     setFallback(false);
+    const targetFacing = overrideFacing || facingRef.current;
+    facingRef.current = targetFacing;
+    setCameraFacing(targetFacing);
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 960 }, aspectRatio: { ideal: 0.75 } },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: bodyModeRef.current === 'full_body' ? 720 : 720 },
+            height: { ideal: bodyModeRef.current === 'full_body' ? 1280 : 960 },
+          },
+          audio: false,
+        });
+      } catch {
+        // Fallback apabila perangkat hanya memiliki 1 kamera (mis. webcam laptop)
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        if (targetFacing === 'environment') {
+          facingRef.current = 'user';
+          setCameraFacing('user');
+          toast('Kamera belakang tidak ditemukan di perangkat ini — menggunakan kamera utama');
+        }
+      }
       streamRef.current = stream;
       const v = videoRef.current!;
       v.srcObject = stream;
@@ -411,7 +768,7 @@ export default function MirrorScreen() {
       setHud((h) => ({ ...h, status: 'Kamera tidak aktif' }));
       return;
     }
-    setHud((h) => ({ ...h, status: 'Memuat model pose…' }));
+    setHud((h) => ({ ...h, status: 'Memuat model pose & gestur 5 jari…' }));
     try {
       const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 15000));
       const vision: any = await Promise.race([import(/* @vite-ignore */ `${MP_URL}/vision_bundle.mjs`), timeout]);
@@ -421,15 +778,50 @@ export default function MirrorScreen() {
           modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
           delegate: 'GPU',
         },
-        runningMode: 'VIDEO', numPoses: 1,
+        runningMode: 'VIDEO',
+        numPoses: 1,
       });
+      // Muat HandLandmarker untuk deteksi akurat Gestur 5 Jari (Open Palm)
+      try {
+        handLandmarkerRef.current = await vision.HandLandmarker.createFromOptions(fileset, {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          numHands: 2,
+        });
+      } catch {
+        handLandmarkerRef.current = null;
+      }
       trackingRef.current = true;
     } catch {
       landmarkerRef.current = null;
+      handLandmarkerRef.current = null;
       trackingRef.current = false;
     }
     lastT.current = -1;
     rafRef.current = requestAnimationFrame(loop);
+  };
+
+  const switchCamera = () => {
+    const nextFacing = facingRef.current === 'user' ? 'environment' : 'user';
+    smoothRef.current.initialized = false;
+    start(nextFacing);
+  };
+
+  const toggleBodyMode = (mode: 'full_body' | 'half_body') => {
+    bodyModeRef.current = mode;
+    setBodyMode(mode);
+    smoothRef.current.initialized = false;
+  };
+
+  const toggleGesture = () => {
+    const next = !gestureEnabledRef.current;
+    gestureEnabledRef.current = next;
+    setGestureEnabled(next);
+    if (!next) cancelCountdown();
+    toast(next ? '🖐️ Auto-Foto Gestur 5 Jari diaktifkan' : 'Auto-Foto Gestur 5 Jari dinonaktifkan');
   };
 
   useEffect(() => {
@@ -443,33 +835,93 @@ export default function MirrorScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p.sku_id]);
 
-  const capture = () => {
-    const video = videoRef.current, canvas = canvasRef.current;
-    if (!video || !video.videoWidth) return;
-    const out = document.createElement('canvas');
-    out.width = canvas!.width; out.height = canvas!.height;
-    const ctx = out.getContext('2d')!;
-    const scale = Math.max(out.width / video.videoWidth, out.height / video.videoHeight);
-    const dw = video.videoWidth * scale, dh = video.videoHeight * scale;
-    ctx.save(); ctx.translate(out.width, 0); ctx.scale(-1, 1);
-    ctx.drawImage(video, (out.width - dw) / 2, (out.height - dh) / 2, dw, dh);
-    ctx.restore();
-    ctx.drawImage(canvas!, 0, 0);
-    set({ sheet: 'foto', param: out.toDataURL('image/png') } as any);
-  };
-
   return (
     <section className="screen is-active screen--sub" id="screen-cermin" data-tab="studio" aria-label="Cermin AI">
       <Subbar backTo="fitting" title="Cermin AI" sub={`${p.name} — ${p.variant}`} />
       <div className="screen__body">
-        <div className="mirror-stage" id="mirror-stage">
-          <video id="mirror-video" ref={videoRef} playsInline muted autoPlay style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
+        {/* Toolbar Kontrol Mode Seluruh Badan, Kamera Depan/Belakang, & Gestur 5 Jari */}
+        <div className="mirror-toolbar" role="toolbar" aria-label="Pengaturan Cermin AI">
+          <div className="mirror-toolbar__group">
+            <button
+              type="button"
+              className={`mirror-tool-btn${bodyMode === 'full_body' ? ' is-active' : ''}`}
+              onClick={() => toggleBodyMode('full_body')}
+            >
+              🧍 Seluruh Badan
+            </button>
+            <button
+              type="button"
+              className={`mirror-tool-btn${bodyMode === 'half_body' ? ' is-active' : ''}`}
+              onClick={() => toggleBodyMode('half_body')}
+            >
+              👤 Setengah Badan
+            </button>
+          </div>
+          <div className="mirror-toolbar__group">
+            <button
+              type="button"
+              className={`mirror-tool-btn${gestureEnabled ? ' is-active' : ''}`}
+              onClick={toggleGesture}
+              title="Angkat 5 jari terbuka untuk hitung mundur foto otomatis"
+            >
+              🖐️ 5 Jari {gestureEnabled ? 'ON' : 'OFF'}
+            </button>
+            <button
+              type="button"
+              className="mirror-tool-btn"
+              onClick={switchCamera}
+              title="Ganti Kamera Depan / Belakang"
+            >
+              🔄 {cameraFacing === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}
+            </button>
+          </div>
+        </div>
+
+        <div className={`mirror-stage${bodyMode === 'full_body' ? ' mirror-stage--full' : ''}`} id="mirror-stage">
+          <video
+            id="mirror-video"
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: cameraFacing === 'user' ? 'scaleX(-1)' : 'none',
+            }}
+          />
           <canvas id="mirror-canvas" ref={canvasRef} />
+
+          {/* Efek Flash Kamera saat memotret */}
+          {flash && <div className="mirror-flash" aria-hidden="true" />}
+
           <div className="mirror-hud">
             <span className="hud-chip" id="hud-status">{hud.status}</span>
             <span className="hud-chip hud-chip--dim" id="hud-shoulder">{hud.shoulder}</span>
             <span className={`hud-chip${hud.ok ? ' hud-chip--ok' : ''}${hud.warn ? ' hud-chip--warn' : ''}`} id="hud-fit">{hud.fit}</span>
           </div>
+
+          {/* Indikator Hold Gestur 5 Jari */}
+          {gestureEnabled && gestureHoldPct > 0 && countdown === null && (
+            <div className="mirror-gesture-pill" aria-live="polite">
+              <span>🖐️ Gestur 5 Jari Terdeteksi — Tahan ({gestureHoldPct}%)</span>
+              <div className="mirror-gesture-bar"><i style={{ width: `${gestureHoldPct}%` }} /></div>
+            </div>
+          )}
+
+          {/* Overlay Hitung Mundur Auto-Foto (3..2..1) */}
+          {countdown !== null && (
+            <div className="mirror-countdown" role="status" aria-live="assertive">
+              <div className="mirror-countdown__num">{countdown}</div>
+              <p>Turunkan tangan & berpose tegak!</p>
+              <button type="button" className="btn btn--outline btn--sm" style={{ background: 'rgba(18,18,18,0.75)', color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }} onClick={cancelCountdown}>
+                Batalkan Foto
+              </button>
+            </div>
+          )}
 
           {/* Floating Glass Dock di bagian bawah Cermin agar kontrol Ukuran & Warna langsung terlihat di layar HP tanpa perlu scroll */}
           <div className="mirror-dock">
@@ -513,12 +965,18 @@ export default function MirrorScreen() {
           </div>
         </div>
 
+        {/* Banner Status Validasi & Pencegahan Kesalahan Data */}
+        <div className="mirror-integrity-bar">
+          <span>🛡️ {dataIntegrityNote}</span>
+          <span>{gestureEnabled ? '🖐️ Angkat 5 jari untuk foto otomatis' : '📸 Mode foto manual'}</span>
+        </div>
+
         {fallback && (
           <div className="empty-state" id="mirror-fallback" style={{ padding: '40px 24px' }}>
             <div className="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2" /><rect x="2" y="8" width="20" height="12" rx="2" /><circle cx="12" cy="14" r="3.2" /></svg></div>
             <p className="serif-sm">Kamera belum siap</p>
             <p className="muted-sm">Izinkan akses kamera di browser (butuh HTTPS — sudah aktif di situs ini). Proses 100% di perangkat, video tidak dikirim ke mana pun.</p>
-            <button type="button" className="btn btn--outline btn--sm" onClick={start}>Coba Buka Kamera</button>
+            <button type="button" className="btn btn--outline btn--sm" onClick={() => start()}>Coba Buka Kamera</button>
           </div>
         )}
 
@@ -615,8 +1073,11 @@ export default function MirrorScreen() {
           {s.profile ? '🪞 Pose & Skin-Tone AI berjalan di perangkat — pakaian mengikuti bahu Anda, dan warna dianalisis terhadap rona kulit Anda.' : '🪞 Pose & Skin-Tone AI berjalan di perangkat. Tip: isi Atelier Consultation dulu agar estimasi bahu memakai tinggi badan Anda.'}
         </p>
       </div>
-      <div className="screen__cta">
-        <button type="button" className="btn btn--dark btn--block" onClick={capture}>Ambil Foto 📸</button>
+      <div className="screen__cta" style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="btn btn--outline" style={{ flex: '0 0 auto', padding: '0 14px' }} onClick={triggerGestureCountdown} title="Hitung mundur 3 detik untuk berdiri jauh">
+          ⏱️ 3d
+        </button>
+        <button type="button" className="btn btn--dark btn--block" style={{ flex: 1 }} onClick={() => capture(false)}>Ambil Foto 📸</button>
       </div>
 
       {(s.sheet as any) === 'foto' && (
