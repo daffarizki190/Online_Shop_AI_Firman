@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { prod } from '../data';
 import { useApp, STORE, Cloud, fmtIDR, fmtK, getShipOptions, VOUCHERS, PAYMENTS, PROVINSI, KOTA_BY_PROV } from '../store';
-import { Stepper, Subbar, EmptyState, IconBag } from '../ui';
+import { Stepper, Subbar, EmptyState, IconBag, IconBack, useSmartBack } from '../ui';
 
 /* ---------------- Bag (langkah 1) ---------------- */
 export function BagScreen() {
   const { s, set, goto, toast, persistBagPrefs } = useApp();
+  const back = useSmartBack('shop');
   const [vInput, setVInput] = useState('');
   const count = s.cart.reduce((a, i) => a + i.qty, 0);
   const subtotal = s.cart.reduce((a, i) => a + i.qty * prod(i.sku).price, 0);
@@ -14,15 +15,25 @@ export function BagScreen() {
   if (!count) {
     return (
       <section className="screen is-active" id="screen-bag" data-tab="bag" aria-label="Tas belanja">
-        <header className="appbar"><span className="brand brand--sm">ATELIER BAG</span><span className="mono-muted">0 item</span></header>
+        <header className="appbar">
+          <button type="button" className="icon-btn" aria-label="Kembali" title="Kembali" onClick={back}><IconBack /></button>
+          <span className="brand brand--sm">ATELIER BAG</span>
+          <span className="mono-muted">0 item</span>
+        </header>
         <Stepper active={1} />
         <div className="screen__body">
           <EmptyState icon={<IconBag />} title="Tas masih kosong"
             desc={<>Ukuran hasil rekomendasi AI otomatis mendapat lencana terverifikasi &amp; jaminan tukar gratis.</>}>
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Lihat Koleksi</button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={back}>← Kembali</button>
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Lihat Koleksi</button>
+            </div>
           </EmptyState>
         </div>
-        <div className="screen__cta"><button type="button" className="btn btn--dark btn--block" disabled>Tas Masih Kosong</button></div>
+        <div className="screen__cta screen__cta--split">
+          <button type="button" className="btn btn--ghost" onClick={back}>← Kembali</button>
+          <button type="button" className="btn btn--dark btn--block" disabled>Tas Masih Kosong</button>
+        </div>
       </section>
     );
   }
@@ -30,7 +41,11 @@ export function BagScreen() {
 
   return (
     <section className="screen is-active" id="screen-bag" data-tab="bag" aria-label="Tas belanja">
-      <header className="appbar"><span className="brand brand--sm">ATELIER BAG</span><span className="mono-muted">{count} item</span></header>
+      <header className="appbar">
+        <button type="button" className="icon-btn" aria-label="Kembali" title="Kembali" onClick={back}><IconBack /></button>
+        <span className="brand brand--sm">ATELIER BAG</span>
+        <span className="mono-muted">{count} item</span>
+      </header>
       <Stepper active={1} />
       <div className="screen__body">
         <div className="guarantee"><span aria-hidden="true">🛡</span>
@@ -104,7 +119,8 @@ export function BagScreen() {
           <button type="button" className="link-btn" onClick={() => goto('shop')}>+ Lanjut lihat koleksi lain</button>
         </div>
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" onClick={back}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" onClick={() => goto('pengiriman')}>Lanjut ke Pengiriman →</button>
       </div>
     </section>
@@ -147,7 +163,8 @@ export function ShippingScreen() {
         ))}
         <p className="fineprint">Ongkir <b>dihitung otomatis</b> dari zona provinsi alamat — berubah saat alamat diubah.</p>
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" onClick={() => goto('bag')}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" disabled={!a} onClick={() => a && goto('pembayaran')}>
           {a ? 'Lanjut ke Pembayaran →' : 'Isi Alamat Dulu'}
         </button>
@@ -210,7 +227,8 @@ export function AddressScreen() {
         {ff('kodepos', 'Kode Pos', <input className="control" inputMode="numeric" maxLength={5} value={f.kodepos} onChange={(e) => setF({ ...f, kodepos: e.target.value })} placeholder="5 digit" />)}
         {ff('catatan', <>Catatan untuk Kurir <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(opsional)</span></>, <input className="control" value={f.catatan} onChange={(e) => setF({ ...f, catatan: e.target.value })} placeholder="cth. titip ke satpam blok A" />)}
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" onClick={() => goto(s.addressReturn || 'pengiriman')}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" onClick={saveAddr}>Simpan Alamat</button>
       </div>
     </section>
@@ -283,17 +301,22 @@ export function PaymentScreen() {
         <div className="trust-badges"><span>Tukar Ukuran 7 Hari</span><span>100% Original</span><span>Terenkripsi HTTPS/TLS</span></div>
         <p className="fineprint">Metode terpilih: <b>{label}</b> · koneksi aman &amp; terenkripsi.</p>
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" disabled={s.paying} onClick={() => goto('pengiriman')}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" disabled={s.paying} onClick={pay}>
           {s.paying ? 'Memproses Pembayaran…' : `Bayar • ${fmtIDR(t.total)}`}
         </button>
       </div>
 
       {s.sheet === 'qris' && (
-        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) set({ sheet: null }); }}>
+        <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) set({ sheet: null, paying: false }); }}>
           <div className="bottom-sheet" role="dialog" aria-modal="true">
             <div className="bottom-sheet__grip" aria-hidden="true" />
-            <h4>Pindai QRIS untuk Bayar</h4>
+            <div className="row-between">
+              <button type="button" className="link-btn" onClick={() => set({ sheet: null, paying: false })}>← Kembali</button>
+              <h4 style={{ margin: 0 }}>Pindai QRIS untuk Bayar</h4>
+              <button type="button" className="icon-btn icon-btn--sm" aria-label="Tutup" onClick={() => set({ sheet: null, paying: false })}>✕</button>
+            </div>
             <p className="mono-muted">QRIS · {fmtIDR(t.total)}</p>
             <div className="qr-mount" dangerouslySetInnerHTML={{ __html: qrSvg('AURA-' + Date.now()) }} />
             <p className="fineprint">Buka aplikasi e-wallet / m-banking → Scan QRIS. Simulasi: otomatis terbayar ±3 detik.</p>

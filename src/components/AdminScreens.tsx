@@ -93,7 +93,7 @@ export function AdminDashboard() {
 }
 
 export function AdminOrders() {
-  const { s, set, toast } = useApp();
+  const { s, set, goto, toast } = useApp();
   const [tick, setTick] = useState(0);
   const { data, err } = useAdminData('ord' + tick);
   const setOrder = async (buyer: string, id: string, statusIndex: number) => {
@@ -126,6 +126,7 @@ export function AdminOrders() {
             </div>
           ))}
           {(data.recentOrders || []).length === 0 && <p className="muted-sm" style={{ padding: '6px 2px 14px' }}>Belum ada pesanan.</p>}
+          <button type="button" className="btn btn--ghost btn--sm btn--block" style={{ marginTop: 10 }} onClick={() => goto('admin')}>← Kembali ke Dashboard Admin</button>
         </>)}
       </div>
     </section>
@@ -133,7 +134,7 @@ export function AdminOrders() {
 }
 
 export function AdminReviews() {
-  const { set, toast } = useApp();
+  const { set, goto, toast } = useApp();
   const [tick, setTick] = useState(0);
   const { data, err } = useAdminData('rev' + tick);
   const del = async (sku: string, at: string) => {
@@ -162,6 +163,7 @@ export function AdminReviews() {
             </div>
           ))}
           {(data.recentReviews || []).length === 0 && <p className="muted-sm" style={{ padding: '6px 2px 14px' }}>Belum ada ulasan pengguna.</p>}
+          <button type="button" className="btn btn--ghost btn--sm btn--block" style={{ marginTop: 10 }} onClick={() => goto('admin')}>← Kembali ke Dashboard Admin</button>
         </>)}
       </div>
     </section>
@@ -169,6 +171,7 @@ export function AdminReviews() {
 }
 
 export function AdminUsers() {
+  const { goto } = useApp();
   const [tick, setTick] = useState(0);
   const { data, err } = useAdminData('usr' + tick);
   return (
@@ -186,6 +189,7 @@ export function AdminUsers() {
             </div>
           ))}
           {(data.users || []).length === 0 && <p className="muted-sm">Belum ada pengguna.</p>}
+          <button type="button" className="btn btn--ghost btn--sm btn--block" style={{ marginTop: 10 }} onClick={() => goto('admin')}>← Kembali ke Dashboard Admin</button>
         </>)}
       </div>
     </section>

@@ -346,11 +346,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(iv);
   }, []);
 
-  /* service worker */
+  /* service worker & tombol Escape global untuk menutup sheet/modal */
   useEffect(() => {
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('sw.js').catch(() => { /* opsional */ });
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && sRef.current.sheet) {
+        setS((prev) => ({ ...prev, sheet: null, paying: false }));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   return (

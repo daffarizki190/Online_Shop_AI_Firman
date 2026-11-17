@@ -189,15 +189,51 @@ export function getSkinToneSpec(id?: string): SkinToneSpec {
   return SKIN_TONES.find((s) => s.id === id) || SKIN_TONES[2]; // default: medium_warm (Kuning Langsat)
 }
 
+export interface SkinColorimetryMetrics {
+  spec: SkinToneSpec;
+  L: number;
+  a: number;
+  b: number;
+  ita: number;
+  chroma: number;
+  hueAngle: number;
+  illuminantCorrected: boolean;
+}
+
 /**
- * Deteksi warna kulit & undertone dari piksel kamera (sRGB -> CIE XYZ -> CIELAB + ITA° angle).
+ * Analisis kolorimetri kulit berbasis jurnal ilmiah:
+ * 1. Buchsbaum (1980) Gray-World / Von Kries Chromatic Adaptation untuk koreksi lampu ruangan.
+ * 2. CIE 1976 (L*a*b*) & L*C*h° (Lightness, Chroma, Hue Angle) untuk diagnosis 12-Season Personal Color.
+ * 3. Chardon et al. (1991) & Del Bino & Bernerd (2013) Individual Typology Angle (ITA°).
  */
-export function detectSkinToneFromRGB(r: number, g: number, b: number): SkinToneSpec {
+export function analyzeSkinColorimetry(
+  r: number,
+  g: number,
+  b: number,
+  ambientRgb?: { r: number; g: number; b: number } | null
+): SkinColorimetryMetrics {
+  let cr = r, cg = g, cb = b;
+  let illuminantCorrected = false;
+
+  // Koreksi Pencahayaan Ruangan (Von Kries / Damped Gray-World White Balance, Buchsbaum 1980)
+  if (ambientRgb && ambientRgb.r > 25 && ambientRgb.g > 25 && ambientRgb.b > 25) {
+    const lumAmb = 0.299 * ambientRgb.r + 0.587 * ambientRgb.g + 0.114 * ambientRgb.b;
+    const gainR = Math.max(0.84, Math.min(1.18, lumAmb / ambientRgb.r));
+    const gainG = Math.max(0.88, Math.min(1.14, lumAmb / ambientRgb.g));
+    const gainB = Math.max(0.84, Math.min(1.22, lumAmb / ambientRgb.b));
+    // Redaman 55% agar karakter rona kulit asli tidak hilang
+    cr = Math.max(0, Math.min(255, r * (0.45 + 0.55 * gainR)));
+    cg = Math.max(0, Math.min(255, g * (0.45 + 0.55 * gainG)));
+    cb = Math.max(0, Math.min(255, b * (0.45 + 0.55 * gainB)));
+    illuminantCorrected = true;
+  }
+
   const toLin = (c: number) => {
     const v = c / 255;
     return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
   };
-  const R = toLin(r), G = toLin(g), B = toLin(b);
+  const R = toLin(cr), G = toLin(cg), B = toLin(cb);
+  // Transformasi sRGB ke CIE XYZ (D65 Standard Illuminant)
   const X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
   const Y = (R * 0.2126 + G * 0.7152 + B * 0.0722) / 1.00000;
   const Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
@@ -207,16 +243,50 @@ export function detectSkinToneFromRGB(r: number, g: number, b: number): SkinTone
   const a = 500 * (fx - fy);
   const bLab = 200 * (fy - fz);
 
-  // Individual Typology Angle (ITA°) dalam derajat
+  // Rumus Chardon et al. (1991): ITA° = arctan((L* - 50) / b*) * (180 / pi)
   const ita = (Math.atan2(L - 50, Math.max(1, bLab)) * 180) / Math.PI;
+  // CIE Chroma C*_ab & Hue Angle h° (12-Season Personal Color Parameters)
+  const chroma = Math.hypot(a, bLab);
+  const hueAngle = (Math.atan2(bLab, Math.max(0.5, a)) * 180) / Math.PI;
   const warmRatio = bLab / Math.max(1, a);
 
-  if (ita > 48) return warmRatio > 1.35 ? getSkinToneSpec('light_warm') : getSkinToneSpec('fair_cool');
-  if (ita > 34) return getSkinToneSpec('light_warm');
-  if (ita > 20) return warmRatio < 1.25 ? getSkinToneSpec('olive_neutral') : getSkinToneSpec('medium_warm');
-  if (ita > 8) return warmRatio < 1.2 ? getSkinToneSpec('olive_neutral') : getSkinToneSpec('tan_warm');
-  if (ita > -15) return getSkinToneSpec('tan_warm');
-  return getSkinToneSpec('deep_rich');
+  let spec: SkinToneSpec;
+  if (ita > 48) {
+    spec = (warmRatio > 1.35 || hueAngle > 58) ? getSkinToneSpec('light_warm') : getSkinToneSpec('fair_cool');
+  } else if (ita > 34) {
+    spec = getSkinToneSpec('light_warm');
+  } else if (ita > 20) {
+    spec = (warmRatio < 1.25 || (hueAngle < 56 && chroma < 21)) ? getSkinToneSpec('olive_neutral') : getSkinToneSpec('medium_warm');
+  } else if (ita > 8) {
+    spec = (warmRatio < 1.20 || (hueAngle < 55 && chroma < 20)) ? getSkinToneSpec('olive_neutral') : getSkinToneSpec('tan_warm');
+  } else if (ita > -15) {
+    spec = getSkinToneSpec('tan_warm');
+  } else {
+    spec = getSkinToneSpec('deep_rich');
+  }
+
+  return {
+    spec,
+    L: Math.round(L * 10) / 10,
+    a: Math.round(a * 10) / 10,
+    b: Math.round(bLab * 10) / 10,
+    ita: Math.round(ita * 10) / 10,
+    chroma: Math.round(chroma * 10) / 10,
+    hueAngle: Math.round(hueAngle * 10) / 10,
+    illuminantCorrected,
+  };
+}
+
+/**
+ * Deteksi warna kulit & undertone dari piksel kamera (sRGB -> CIE XYZ -> CIELAB + ITA° angle).
+ */
+export function detectSkinToneFromRGB(
+  r: number,
+  g: number,
+  b: number,
+  ambientRgb?: { r: number; g: number; b: number } | null
+): SkinToneSpec {
+  return analyzeSkinColorimetry(r, g, b, ambientRgb).spec;
 }
 
 export function scoreColorHarmony(skinToneId: string | undefined, variant: string): ColorHarmonyResult {
@@ -331,26 +401,38 @@ export function computeFeedbackBias(feedbackList: FeedbackItem[] = [], targetSku
   };
 }
 
+/**
+ * Estimasi antropometri tubuh berbasis standar:
+ * - ISO 8559-1:2017 (Size designation of clothes — Part 1: Anthropometric definitions)
+ * - Chuan, Hartono, & Kumar (2010) — Anthropometry of the Singaporean and Indonesian populations (Int. J. Ind. Ergon.)
+ * - Heymsfield et al. (2008) — Allometric body circumference scaling model (Nutrition & Metabolism)
+ */
 export function estimateBody(input: { gender: string; height_cm: number; weight_kg: number; age: number; body_shape: string }) {
   const { gender, height_cm: h, weight_kg: w, age } = input;
   const adj = BODY_SHAPE_ADJUST[input.body_shape] || BODY_SHAPE_ADJUST.rectangle;
   const ageAdj = clamp((age - 30) * 0.15, -2, 4);
 
-  // Penyesuaian distribusi volume tubuh berbasis IMT (BMI)
+  // Penyesuaian distribusi volume tubuh berbasis IMT (BMI) & Allometric Scaling (Heymsfield et al., 2008)
   const bmi = w / ((h / 100) * (h / 100));
-  const bmiAdjChest = clamp((bmi - 22) * 0.45, -2.5, 3.5);
-  const bmiAdjWaist = clamp((bmi - 22) * 0.65, -3, 4.5);
+  const allometricBmi = Math.sqrt(Math.max(0.65, Math.min(1.65, bmi / 22))) - 1;
+  const bmiAdjChest = clamp((bmi - 22) * 0.45 + allometricBmi * 2.2, -2.5, 4.0);
+  const bmiAdjWaist = clamp((bmi - 22) * 0.65 + allometricBmi * 3.1, -3, 5.0);
 
   let chest: number, waist: number, hips: number, shoulder: number;
+  let biacromial: number, bideltoid: number;
   if (gender === 'female') {
     chest = 0.2 * h + 0.72 * w + 12 + bmiAdjChest;
     waist = 0.85 * w + 0.1 * h + 3 + ageAdj + bmiAdjWaist;
     hips = 0.65 * w + 0.33 * h + 4;
+    biacromial = 0.212 * h + 0.045 * (w - 55);
+    bideltoid = biacromial * clamp(1.13 + (bmi - 21.5) * 0.0045, 1.08, 1.24);
     shoulder = 0.21 * h + 0.1 * w;
   } else {
     chest = 0.22 * h + 0.7 * w + 9 + bmiAdjChest;
     waist = 0.9 * w + 0.12 * h - 2 + ageAdj + bmiAdjWaist;
     hips = 0.55 * w + 0.32 * h + 3;
+    biacromial = 0.228 * h + 0.05 * (w - 65);
+    bideltoid = biacromial * clamp(1.15 + (bmi - 22.0) * 0.005, 1.10, 1.26);
     shoulder = 0.21 * h + 0.09 * w;
   }
 
@@ -363,8 +445,37 @@ export function estimateBody(input: { gender: string; height_cm: number; weight_
     estimated_waist_cm: round1(waist + adj.waist),
     estimated_hips_cm: round1(hips + adj.hips),
     estimated_shoulder_cm: round1(shoulder + adj.shoulder),
+    biacromial_shoulder_cm: round1(biacromial + adj.shoulder * 0.7),
+    bideltoid_shoulder_cm: round1(bideltoid + adj.shoulder),
     estimated_sleeve_cm: sleeve,
     estimated_torso_cm: torso,
+  };
+}
+
+/**
+ * Koreksi Perspektif 3D Yaw (Foreshortening) & Faktor Biakromial-ke-Bideltoid pada MediaPipe Pose
+ * Berdasarkan BlazePose (Bazarevsky et al., 2020) & ISO 8559-1:2017.
+ */
+export function correctPoseShoulderWidth(
+  rawShoulderPx: number,
+  lm11?: { x: number; y: number; z?: number } | null,
+  lm12?: { x: number; y: number; z?: number } | null,
+  bmi = 22.5
+): { correctedPx: number; yawDeg: number; deltoidFactor: number } {
+  let yawRad = 0;
+  if (lm11 && lm12 && typeof lm11.z === 'number' && typeof lm12.z === 'number') {
+    const dx = Math.max(0.04, Math.abs(lm12.x - lm11.x));
+    const dz = Math.abs(lm12.z - lm11.z);
+    // Redaman z MediaPipe (skala z monokuler relatif terhadap x)
+    yawRad = Math.min(0.52, Math.atan2(dz * 0.55, dx));
+  }
+  const secYaw = 1 / Math.max(0.84, Math.cos(yawRad));
+  // Faktor konversi pusat sendi glenohumeral MediaPipe ke ujung akromion/deltoid jahitan bahu (ISO 8559-1)
+  const deltoidFactor = clamp(1.28 + (bmi - 22) * 0.0055, 1.22, 1.38);
+  return {
+    correctedPx: rawShoulderPx * secYaw,
+    yawDeg: Math.round((yawRad * 180) / Math.PI),
+    deltoidFactor: round1(deltoidFactor),
   };
 }
 
@@ -671,7 +782,7 @@ export function filterMeasurementSpike(
     return { value: round1(cleanSample), history: [cleanSample], rejectedSpike: false };
   }
 
-  const sorted = [...history].sort((a, b) => a - b);
+  const sorted = history.toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 

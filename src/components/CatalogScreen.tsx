@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { CATALOG, CATEGORIES, prod, summarize } from '../data';
 import { scoreColorHarmony } from '../engine';
 import { useApp, fmtIDR, fmtK } from '../store';
-import { Stars, IconSearch, IconHeart, IconBag } from '../ui';
+import { Stars, IconSearch, IconHeart, IconBag, IconBack } from '../ui';
 import type { Product } from '../types';
 
 function searchable(p: Product) {
@@ -22,13 +22,13 @@ export default function CatalogScreen() {
     });
     const avg = (p: Product) => summarize([...p.reviews, ...(s.remoteReviews[p.sku_id] || []), ...(s.userReviews[p.sku_id] || [])]).avg;
     const sort = s.search.sort;
-    if (sort === 'asc') l = [...l].sort((a, b) => a.price - b.price);
-    if (sort === 'desc') l = [...l].sort((a, b) => b.price - a.price);
-    if (sort === 'rating') l = [...l].sort((a, b) => avg(b) - avg(a));
-    if (sort === 'pop') l = [...l].sort((a, b) => b.sold - a.sold);
+    if (sort === 'asc') l = l.toSorted((a, b) => a.price - b.price);
+    if (sort === 'desc') l = l.toSorted((a, b) => b.price - a.price);
+    if (sort === 'rating') l = l.toSorted((a, b) => avg(b) - avg(a));
+    if (sort === 'pop') l = l.toSorted((a, b) => b.sold - a.sold);
     if (sort === 'color') {
       const skinId = s.profile?.skin_tone || (s.profile?.metrics.skin_tone as string) || 'medium_warm';
-      l = [...l].sort((a, b) => scoreColorHarmony(skinId, b.variant).score - scoreColorHarmony(skinId, a.variant).score);
+      l = l.toSorted((a, b) => scoreColorHarmony(skinId, b.variant).score - scoreColorHarmony(skinId, a.variant).score);
     }
     return l;
   }, [s.search, s.remoteReviews, s.userReviews, s.profile, q]);
@@ -53,6 +53,27 @@ export default function CatalogScreen() {
     <section className="screen is-active" id="screen-shop" data-tab="shop" aria-label="Katalog">
       <header className="appbar">
         <div className="brand-wrap">
+          {(q || s.search.cat !== 'Semua') ? (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Kembali ke semua produk"
+              title="Kembali ke semua produk"
+              onClick={() => { set({ search: { q: '', cat: 'Semua', sort: 'pop' } }); setAcOpen(false); }}
+            >
+              <IconBack />
+            </button>
+          ) : s.auth?.role === 'admin' ? (
+            <button
+              type="button"
+              className="icon-btn"
+              aria-label="Kembali ke Panel Admin"
+              title="Kembali ke Panel Admin"
+              onClick={() => goto('admin')}
+            >
+              <IconBack />
+            </button>
+          ) : null}
           <img src="assets/icon.svg" alt="" className="brand-logo" />
           <span className="brand">AURA ATELIER</span>
         </div>
@@ -80,7 +101,13 @@ export default function CatalogScreen() {
           <input id="search-input" type="search" placeholder="Cari: kaos, hoodie, kemeja…" autoComplete="off" aria-label="Cari produk"
             value={s.search.q}
             onChange={(e) => { set({ search: { ...s.search, q: e.target.value } }); setAcOpen(true); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setAcOpen(false); } }} />
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+                setAcOpen(false);
+              }
+            }} />
           <button type="button" className="icon-btn icon-btn--sm" hidden={!q} aria-label="Hapus pencarian"
             onClick={() => set({ search: { ...s.search, q: '' } })}>✕</button>
         </div>

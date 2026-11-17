@@ -4,7 +4,7 @@ import { estimateBody, recommend, recommendColorsForSkin, scoreColorHarmony, SKI
 import { useApp, Cloud, STORE, fmtIDR, fmtDate, fmtTime, ORDER_STAGES } from '../store';
 import type { AppState } from '../store';
 import type { SkinToneId } from '../types';
-import { Subbar } from '../ui';
+import { Subbar, IconBack, useSmartBack } from '../ui';
 
 /* ---------------- Bantuan & Toko + Live Chat ---------------- */
 const FAQ = [
@@ -128,6 +128,7 @@ function botReply(q: string, s: AppState) {
 
 export function HelpScreen() {
   const { s, goto, toast } = useApp();
+  const smartBack = useSmartBack('shop');
   const totalSold = CATALOG.reduce((a, p) => a + p.sold, 0);
   const [chatOpen, setChatOpen] = useState(false);
   const [msgs, setMsgs] = useState<{ who: 'bot' | 'user'; text: string }[]>([
@@ -148,7 +149,16 @@ export function HelpScreen() {
 
   return (
     <section className="screen is-active" id="screen-bantuan" data-tab="none" aria-label="Bantuan dan profil toko">
-      <Subbar backTo="shop" title="Bantuan &amp; Tentang Toko" />
+      <Subbar
+        backTo="shop"
+        title="Bantuan &amp; Tentang Toko"
+        onBack={() => {
+          if (chatOpen) {
+            setChatOpen(false);
+            return true;
+          }
+        }}
+      />
       <div className="screen__body" id="bantuan-body">
         <div className="store-card">
           <img src="assets/icon.svg" alt="Logo Aura Atelier" className="store-card__logo" />
@@ -211,11 +221,13 @@ export function HelpScreen() {
           </ul>
         </div>
         <p className="fineprint" style={{ marginTop: 12 }}>Transaksi dilindungi enkripsi HTTPS/TLS.</p>
+        <button type="button" className="btn btn--ghost btn--block" style={{ marginTop: 10 }} onClick={smartBack}>← Kembali</button>
       </div>
 
       {chatOpen && (
         <div className="chat-overlay" role="dialog" aria-label="Live chat bantuan">
           <header className="chat-head">
+            <button type="button" className="icon-btn" aria-label="Kembali dari chat" title="Kembali" onClick={() => setChatOpen(false)}><IconBack /></button>
             <span className="chat-dot" aria-hidden="true" />
             <div className="chat-head__titles"><strong>Bantuan Aura</strong><small>Online · rata-rata balas &lt; 2 menit</small></div>
             <button type="button" className="icon-btn" aria-label="Tutup chat" onClick={() => setChatOpen(false)}>✕</button>
@@ -266,6 +278,7 @@ export function HelpScreen() {
 /* ---------------- Akun ---------------- */
 export function AccountScreen() {
   const { s, set, goto, toast } = useApp();
+  const smartBack = useSmartBack('shop');
   const u = s.auth!;
   const isAdmin = u.role === 'admin';
   const a = s.address;
@@ -323,14 +336,17 @@ export function AccountScreen() {
           );
         }) : <p className="muted-sm" style={{ padding: '8px 2px 16px' }}>Belum ada pesanan — riwayat muncul setelah pembayaran.</p>}
 
-        <button type="button" className="btn btn--danger btn--block" style={{ marginTop: 18 }}
-          onClick={() => {
-            Cloud.setToken(null);
-            localStorage.setItem(STORE.auth, 'null');
-            set({ auth: null, authMode: 'login' });
-            toast('Anda keluar. Profil & keranjang tetap tersimpan di perangkat ini.');
-            goto('login');
-          }}>Keluar</button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <button type="button" className="btn btn--ghost" onClick={smartBack}>← Kembali</button>
+          <button type="button" className="btn btn--danger btn--block"
+            onClick={() => {
+              Cloud.setToken(null);
+              localStorage.setItem(STORE.auth, 'null');
+              set({ auth: null, authMode: 'login' });
+              toast('Anda keluar. Profil & keranjang tetap tersimpan di perangkat ini.');
+              goto('login');
+            }}>Keluar</button>
+        </div>
       </div>
     </section>
   );

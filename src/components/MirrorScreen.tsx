@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CATALOG, prod } from '../data';
 import {
+  analyzeSkinColorimetry,
+  correctPoseShoulderWidth,
   detectFiveFingerGesture,
   detectSkinToneFromRGB,
   evaluateFullBodyFraming,
@@ -10,7 +12,7 @@ import {
 } from '../engine';
 import { useApp, inStock, STORE } from '../store';
 import type { SkinToneId } from '../types';
-import { Subbar } from '../ui';
+import { Subbar, useSmartBack } from '../ui';
 
 const MIRROR_SHAPES: Record<string, string> = {
   tee: 'M 355 316 Q 448 374 541 316 C 585 322 632 334 668 352 L 758 498 L 668 544 L 622 478 L 608 930 Q 448 955 288 930 L 274 478 L 228 544 L 138 498 L 228 352 C 264 334 311 322 355 316 Z',
@@ -46,6 +48,7 @@ function playTone(freq = 880, durationSec = 0.08) {
 
 export default function MirrorScreen() {
   const { s, set, ensureResult, toast } = useApp();
+  const smartBack = useSmartBack('fitting');
   const p = prod(s.mirrorSku || s.currentSku);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -476,18 +479,33 @@ export default function MirrorScreen() {
                 smRgb.g = smRgb.g * 0.72 + avgG * 0.28;
                 smRgb.b = smRgb.b * 0.72 + avgB * 0.28;
               }
-              const spec = detectSkinToneFromRGB(smRgb.r, smRgb.g, smRgb.b);
+              // Ambil sampel pencahayaan latar (sudut kiri/kanan atas frame) untuk Koreksi White-Balance Von Kries (Buchsbaum 1980)
+              sctx.drawImage(video, 8, 8, 6, 6, 0, 0, 6, 6);
+              sctx.drawImage(video, Math.max(8, video.videoWidth - 16), 8, 6, 6, 6, 0, 6, 6);
+              const ambData = sctx.getImageData(0, 0, 12, 6).data;
+              let ar = 0, ag = 0, ab = 0, ac = 0;
+              for (let j = 0; j < ambData.length; j += 4) {
+                ar += ambData[j]; ag += ambData[j + 1]; ab += ambData[j + 2]; ac++;
+              }
+              const ambientRgb = ac > 0 ? { r: ar / ac, g: ag / ac, b: ab / ac } : null;
+              const colMetrics = analyzeSkinColorimetry(smRgb.r, smRgb.g, smRgb.b, ambientRgb);
+              const spec = colMetrics.spec;
               setDetectedSkin((prev) => (prev === spec.id ? prev : spec.id));
             }
           }
         } catch { /* abaikan bila canvas tainted */ }
       }
 
-      // Kalibrasi Lebar Bahu Multi-Referensi + Pencegahan Kesalahan Data (Hanya update bila postur valid!)
+      // Kalibrasi Lebar Bahu Multi-Referensi + Koreksi Perspektif 3D Yaw (BlazePose / ISO 8559-1)
       const heightCm = Math.max(135, Math.min(215, Number(s.profile?.metrics.height_cm) || 170));
-      const profileShoulderCm = Math.max(36, Math.min(54, Number((s.profile?.metrics as any)?.shoulder_cm) || (heightCm * 0.264)));
+      const weightKg = Math.max(35, Math.min(160, Number(s.profile?.metrics.weight_kg) || 65));
+      const userBmi = weightKg / ((heightCm / 100) * (heightCm / 100));
+      const profileShoulderCm = Math.max(36, Math.min(54, Number((s.profile?.metrics as any)?.shoulder_cm || (s.profile?.metrics as any)?.estimated_shoulder_cm) || (heightCm * 0.264)));
 
       if (framing.isPostureValid) {
+        const poseCorr = correctPoseShoulderWidth(shoulderPx, lm[11], lm[12], userBmi);
+        const effShoulderPx = poseCorr.correctedPx;
+        const deltoidFactor = poseCorr.deltoidFactor;
         const estimates: number[] = [];
 
         // Referensi 1: Lebar kranial antar-telinga (lm[7] - lm[8])
@@ -496,7 +514,7 @@ export default function MirrorScreen() {
           const eR = lmToCanvas(lm[8], canvas, video);
           const earDistPx = Math.hypot(eR.x - eL.x, eR.y - eL.y);
           if (earDistPx > 14) {
-            estimates.push((shoulderPx / earDistPx) * 24.1 * (heightCm / 170));
+            estimates.push((effShoulderPx / earDistPx) * 24.1 * (heightCm / 170));
           }
         }
 
@@ -510,17 +528,17 @@ export default function MirrorScreen() {
           const mouthMid = { x: (mouthL.x + mouthR.x) / 2, y: (mouthL.y + mouthR.y) / 2 };
           const eyeToMouthPx = Math.hypot(mouthMid.x - eyeMid.x, mouthMid.y - eyeMid.y);
           if (eyeToMouthPx > 10) {
-            estimates.push((shoulderPx / eyeToMouthPx) * 9.45 * (heightCm / 170));
+            estimates.push((effShoulderPx / eyeToMouthPx) * 9.45 * (heightCm / 170));
           }
         }
 
         // Referensi 3: Torso / Full-body bila berdiri agak jauh (pinggul lm[24] atau pergelangan kaki lm[28] terlihat)
         if (lm[28] && lm[28].visibility > 0.5) {
           const bodyPx = Math.abs(lmToCanvas(lm[0], canvas, video).y - lmToCanvas(lm[28], canvas, video).y);
-          if (bodyPx > shoulderPx * 2.2) estimates.push(((shoulderPx * 1.32) / bodyPx) * (heightCm * 0.90));
+          if (bodyPx > effShoulderPx * 2.2) estimates.push(((effShoulderPx * deltoidFactor) / bodyPx) * (heightCm * 0.90));
         } else if (lm[24] && lm[24].visibility > 0.5) {
           const torsoPx = Math.abs(cy - lmToCanvas(lm[24], canvas, video).y);
-          if (torsoPx > shoulderPx * 0.90) estimates.push(((shoulderPx * 1.32) / torsoPx) * (heightCm * 0.30));
+          if (torsoPx > effShoulderPx * 0.90) estimates.push(((effShoulderPx * deltoidFactor) / torsoPx) * (heightCm * 0.30));
         }
 
         const validEstimates = estimates.filter((v) => Number.isFinite(v) && v >= 34 && v <= 58);
@@ -944,8 +962,8 @@ export default function MirrorScreen() {
               </div>
             </div>
             <div className="mirror-dock__colors" aria-label="Ganti warna pakaian cepat">
-              {[...CATALOG]
-                .sort((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
+              {CATALOG
+                .toSorted((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
                 .map((item) => {
                   const h = scoreColorHarmony(activeSkinId, item.variant);
                   const isCur = item.sku_id === p.sku_id;
@@ -1037,8 +1055,8 @@ export default function MirrorScreen() {
             Ganti Warna Pakaian di Cermin (Diurutkan AI untuk Kulit Anda):
           </small>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-            {[...CATALOG]
-              .sort((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
+            {CATALOG
+              .toSorted((a, b) => scoreColorHarmony(activeSkinId, b.variant).score - scoreColorHarmony(activeSkinId, a.variant).score)
               .map((item) => {
                 const h = scoreColorHarmony(activeSkinId, item.variant);
                 const isCur = item.sku_id === p.sku_id;
@@ -1074,6 +1092,9 @@ export default function MirrorScreen() {
         </p>
       </div>
       <div className="screen__cta" style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="btn btn--ghost" style={{ flex: '0 0 auto', padding: '0 12px' }} onClick={smartBack} title="Kembali">
+          ← Kembali
+        </button>
         <button type="button" className="btn btn--outline" style={{ flex: '0 0 auto', padding: '0 14px' }} onClick={triggerGestureCountdown} title="Hitung mundur 3 detik untuk berdiri jauh">
           ⏱️ 3d
         </button>
@@ -1084,11 +1105,15 @@ export default function MirrorScreen() {
         <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) set({ sheet: null }); }}>
           <div className="bottom-sheet" role="dialog" aria-modal="true">
             <div className="bottom-sheet__grip" aria-hidden="true" />
-            <h4>Hasil Cermin AI</h4>
+            <div className="row-between">
+              <button type="button" className="link-btn" onClick={() => set({ sheet: null })}>← Kembali</button>
+              <h4 style={{ margin: 0 }}>Hasil Cermin AI</h4>
+              <button type="button" className="icon-btn icon-btn--sm" aria-label="Tutup" onClick={() => set({ sheet: null })}>✕</button>
+            </div>
             <img src={(s.param as any) || ''} alt="Foto hasil coba pakaian" style={{ width: '100%', borderRadius: 8, border: '1px solid var(--line)', margin: '12px 0' }} />
             <div className="row-between">
               <a className="btn btn--outline btn--sm" href={(s.param as any) || '#'} download="aura-cermin.png">Unduh Foto</a>
-              <button type="button" className="btn btn--dark btn--sm" onClick={() => set({ sheet: null })}>Tutup</button>
+              <button type="button" className="btn btn--dark btn--sm" onClick={() => set({ sheet: null })}>← Kembali ke Cermin</button>
             </div>
           </div>
         </div>

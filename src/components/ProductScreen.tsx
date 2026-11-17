@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CATALOG, prod, summarize } from '../data';
 import { useApp, STORE, Cloud, fmtIDR, fmtK, inStock, esc } from '../store';
-import { Stars, Subbar } from '../ui';
+import { Stars, Subbar, IconBack, useSmartBack } from '../ui';
 
 export default function ProductScreen() {
   const { s, set, goto, ensureResult, addToCart, toast, fetchRemoteReviews } = useApp();
+  const smartBack = useSmartBack('shop');
   const p = prod(s.currentSku);
   const [view, setView] = useState<'a' | 'b' | 'c'>('a');
   const [zoom, setZoom] = useState(false);
@@ -55,7 +56,17 @@ export default function ProductScreen() {
 
   return (
     <section className="screen is-active screen--sub" id="screen-produk" data-tab="shop" aria-label="Detail produk">
-      <Subbar backTo="shop" title={p.name} sub={`${p.category} · ${p.variant}`} />
+      <Subbar
+        backTo="shop"
+        title={p.name}
+        sub={`${p.category} · ${p.variant}`}
+        onBack={() => {
+          if (zoom) {
+            setZoom(false);
+            return true;
+          }
+        }}
+      />
       <div className="screen__body">
         <figure className="pdp-media">
           <img id="pdp-img" className={view === 'a' ? '' : `view-${view}`} src={p.image} alt={`${p.name} ${p.variant}`} width={896} height={1200} onClick={() => setZoom(true)} />
@@ -244,6 +255,9 @@ export default function ProductScreen() {
       </div>
 
       <div className="screen__cta">
+        <button type="button" className="icon-btn icon-btn--square" aria-label="Kembali" title="Kembali" onClick={smartBack}>
+          <IconBack />
+        </button>
         <button type="button" className="icon-btn icon-btn--square" aria-label="Simpan produk" aria-pressed={savedNow}
           onClick={() => {
             const saved = savedNow ? s.saved.filter((x) => x !== p.sku_id) : [...s.saved, p.sku_id];
@@ -262,6 +276,7 @@ export default function ProductScreen() {
       {/* Zoom foto */}
       {zoom && (
         <div className="zoom-overlay" role="dialog" aria-label="Zoom foto produk">
+          <button type="button" className="btn btn--outline btn--sm" style={{ position: 'absolute', top: 14, left: 14, zIndex: 3, background: 'rgba(18,18,18,0.75)', color: '#fff', borderColor: 'rgba(255,255,255,0.35)' }} aria-label="Kembali dari zoom" onClick={() => setZoom(false)}>← Kembali</button>
           <button type="button" className="icon-btn zoom-close" aria-label="Tutup zoom" onClick={() => setZoom(false)}>✕</button>
           <div className={`zoom-stage${zoomBig ? ' is-zoomed' : ''}`} onDoubleClick={() => setZoomBig(!zoomBig)}
             onClick={(e) => { if ((e.target as HTMLElement).classList.contains('zoom-stage')) setZoom(false); }}>
@@ -277,7 +292,8 @@ export default function ProductScreen() {
           <div className="bottom-sheet" role="dialog" aria-modal="true">
             <div className="bottom-sheet__grip" aria-hidden="true" />
             <div className="row-between">
-              <h4>Size Chart Matrix (cm)</h4>
+              <button type="button" className="link-btn" onClick={() => set({ sheet: null })}>← Kembali</button>
+              <h4 style={{ margin: 0 }}>Size Chart Matrix (cm)</h4>
               <button type="button" className="icon-btn icon-btn--sm" aria-label="Tutup" onClick={() => set({ sheet: null })}>✕</button>
             </div>
             <table className="chart-table">
@@ -300,7 +316,11 @@ export default function ProductScreen() {
         <div className="sheet-overlay" onClick={(e) => { if (e.target === e.currentTarget) set({ sheet: null }); }}>
           <div className="bottom-sheet" role="dialog" aria-modal="true">
             <div className="bottom-sheet__grip" aria-hidden="true" />
-            <h4>Tulis Ulasan</h4>
+            <div className="row-between">
+              <button type="button" className="link-btn" onClick={() => set({ sheet: null })}>← Kembali</button>
+              <h4 style={{ margin: 0 }}>Tulis Ulasan</h4>
+              <button type="button" className="icon-btn icon-btn--sm" aria-label="Tutup" onClick={() => set({ sheet: null })}>✕</button>
+            </div>
             <p className="mono-muted">{p.name} — {p.variant}</p>
             <p className="label-xs" style={{ marginTop: 12 }}>Rating Anda</p>
             <div className="review-stars" role="radiogroup" aria-label="Pilih rating">
@@ -312,7 +332,10 @@ export default function ProductScreen() {
             <textarea className="control" placeholder="Bagaimana kualitas, ukuran, dan pengirimannya?" value={rText} onChange={(e) => setRText(e.target.value)} />
             <p className="label-xs" style={{ marginTop: 10 }}>Nama <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(opsional)</span></p>
             <input type="text" className="control" placeholder="Nama Anda" value={rName} onChange={(e) => setRName(e.target.value)} />
-            <button type="button" className="btn btn--dark btn--block" style={{ marginTop: 14 }} onClick={submitReview}>Kirim Ulasan</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <button type="button" className="btn btn--ghost" onClick={() => set({ sheet: null })}>← Kembali</button>
+              <button type="button" className="btn btn--dark btn--block" onClick={submitReview}>Kirim Ulasan</button>
+            </div>
           </div>
         </div>
       )}
