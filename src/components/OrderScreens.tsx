@@ -1,27 +1,35 @@
 import React, { useState } from 'react';
 import { prod } from '../data';
 import { useApp, STORE, Cloud, fmtIDR, fmtDate, fmtTime, ORDER_STAGES } from '../store';
-import { Subbar, EmptyState, IconHeart } from '../ui';
+import { Subbar, EmptyState, IconHeart, IconBack, useSmartBack } from '../ui';
 
 /* ---------------- Saved ---------------- */
 export function SavedScreen() {
   const { s, set, goto } = useApp();
+  const back = useSmartBack('shop');
   return (
     <section className="screen is-active" id="screen-saved" data-tab="saved" aria-label="Item tersimpan">
-      <header className="appbar"><span className="brand brand--sm">SAVED</span></header>
+      <header className="appbar">
+        <button type="button" className="icon-btn" aria-label="Kembali" title="Kembali" onClick={back}><IconBack /></button>
+        <span className="brand brand--sm">SAVED</span>
+        <span className="mono-muted">{s.saved.length} item</span>
+      </header>
       <div className="screen__body" id="saved-body">
         {s.saved.length === 0 ? (
           <EmptyState icon={<IconHeart />} title="Belum ada item tersimpan"
             desc="Simpan produk favorit dari halaman produk dengan tombol hati.">
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Jelajahi Koleksi</button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={back}>← Kembali</button>
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Jelajahi Koleksi</button>
+            </div>
           </EmptyState>
         ) : (<>
           {s.saved.map((sku) => {
             const p = prod(sku);
             return (
               <div key={sku} className="saved-item">
-                <img src={p.image} alt="" />
-                <div>
+                <img src={p.image} alt="" style={{ cursor: 'pointer' }} onClick={() => goto('produk/' + sku)} />
+                <div style={{ cursor: 'pointer' }} onClick={() => goto('produk/' + sku)}>
                   <p className="saved-item__name">{p.name} — {p.variant}</p>
                   <p className="saved-item__meta">{p.category}</p>
                   <p className="saved-item__price">{fmtIDR(p.price)}</p>
@@ -31,7 +39,10 @@ export function SavedScreen() {
               </div>
             );
           })}
-          <button type="button" className="btn btn--outline btn--sm btn--block" style={{ marginTop: 8 }} onClick={() => goto('shop')}>Lanjut Belanja</button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={back}>← Kembali</button>
+            <button type="button" className="btn btn--outline btn--sm btn--block" onClick={() => goto('shop')}>Lanjut Belanja</button>
+          </div>
         </>)}
       </div>
     </section>
@@ -41,6 +52,7 @@ export function SavedScreen() {
 /* ---------------- Pelacakan ---------------- */
 export function TrackingScreen() {
   const { s, set, goto, toast } = useApp();
+  const back = useSmartBack('akun');
   const o = s.orders.find((x) => x.id === s.param) || s.orders.find((x) => x.id === s.activeOrderId) || s.orders[0];
 
   if (!o) {
@@ -50,7 +62,10 @@ export function TrackingScreen() {
         <div className="screen__body">
           <EmptyState icon={<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="9" width="19" height="7" rx="2" /><path d="M7 9v3.5M11.5 9v3.5M16 9v3.5" /></svg>}
             title="Belum ada pesanan" desc="Pesanan yang sudah dibayar akan terlacak di sini tahap demi tahap.">
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Mulai Belanja</button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={back}>← Kembali</button>
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('shop')}>Mulai Belanja</button>
+            </div>
           </EmptyState>
         </div>
       </section>
@@ -144,7 +159,8 @@ export function TrackingScreen() {
           )
         )}
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" onClick={back}>← Kembali</button>
         <button type="button" className="btn btn--outline btn--block" onClick={() => goto('shop')}>Belanja Lagi</button>
       </div>
     </section>

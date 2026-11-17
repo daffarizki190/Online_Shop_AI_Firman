@@ -137,7 +137,14 @@ export default function LoginScreen() {
             <div className="field__control"><input id="a-pass" type="password" autoComplete="current-password" placeholder="Min. 6 karakter" value={pass} onChange={(e) => setPass(e.target.value)} /></div>
           </div>
           {err && <p className="auth-error" role="alert">{err}</p>}
-          <button type="submit" className="btn btn--dark btn--block" disabled={busy}>{isLogin ? 'Masuk' : 'Daftar & Masuk'}</button>
+          {!isLogin ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn--ghost" onClick={() => { set({ authMode: 'login' }); setErr(null); }}>← Kembali</button>
+              <button type="submit" className="btn btn--dark btn--block" disabled={busy}>Daftar &amp; Masuk</button>
+            </div>
+          ) : (
+            <button type="submit" className="btn btn--dark btn--block" disabled={busy}>Masuk</button>
+          )}
         </form>
 
         <div className="login__foot">

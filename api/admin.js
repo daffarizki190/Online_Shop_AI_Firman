@@ -49,8 +49,8 @@ export async function GET(req) {
   const itemsSold = orders.reduce((a, o) => a + (o.items || []).reduce((x, i) => x + (i.qty || 1), 0), 0);
   const avgRating = reviews.length ? Math.round((reviews.reduce((a, r) => a + (r.rating || 0), 0) / reviews.length) * 10) / 10 : null;
 
-  const recentOrders = [...orders].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 12);
-  const recentReviews = [...reviews].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 12);
+  const recentOrders = orders.toSorted((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 12);
+  const recentReviews = reviews.toSorted((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 12);
 
   return json({
     ok: true,

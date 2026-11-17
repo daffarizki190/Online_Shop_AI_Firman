@@ -104,9 +104,43 @@ export function ToastHost() {
   return <div className="toast" role="status" aria-live="polite">{s.toast}</div>;
 }
 
-export function SubbarAdmin({ title, sub, right }: { title: string; sub: string; right?: React.ReactNode }) {
+function setHistory(h: string[]) {
+  (window as any).__auraHistory = h;
+}
+
+export function useSmartBack(backTo: string, onCustomBack?: () => boolean | void) {
+  const { goto, s, set } = useApp();
+  return () => {
+    if (onCustomBack) {
+      const handled = onCustomBack();
+      if (handled === true) return;
+    }
+    if (s.sheet) {
+      set({ sheet: null });
+      return;
+    }
+    const hist: string[] = [...((window as any).__auraHistory || [])];
+    const curEntry = s.param ? `${s.route}/${s.param}` : s.route;
+    while (hist.length > 0 && (hist[hist.length - 1] === curEntry || hist[hist.length - 1] === s.route)) {
+      hist.pop();
+    }
+    if (hist.length > 0) {
+      const prev = hist[hist.length - 1];
+      setHistory(hist);
+      goto(prev);
+    } else {
+      goto(backTo);
+    }
+  };
+}
+
+export function SubbarAdmin({ title, sub, right, backTo = 'admin' }: { title: string; sub: string; right?: React.ReactNode; backTo?: string }) {
+  const { s } = useApp();
+  const defaultBack = s.route === 'admin' ? 'shop' : backTo;
+  const back = useSmartBack(defaultBack);
   return (
     <header className="subbar subbar--admin">
+      <button type="button" className="icon-btn" aria-label="Kembali" title="Kembali" onClick={back}><IconBack /></button>
       <span className="admin-pill">ADMIN</span>
       <div className="subbar__titles"><strong>{title}</strong><span className="mono">{sub}</span></div>
       {right ?? <span className="subbar__spacer" aria-hidden="true" />}
@@ -114,24 +148,23 @@ export function SubbarAdmin({ title, sub, right }: { title: string; sub: string;
   );
 }
 
-function setHistory(h: string[]) {
-  (window as any).__auraHistory = h;
-}
-
-export function Subbar({ backTo, title, sub, right }: { backTo: string; title: React.ReactNode; sub?: React.ReactNode; right?: React.ReactNode }) {
-  const { goto, s } = useApp();
-  s.history = (window as any).__auraHistory || [];
-  const back = () => {
-    // Riwayat in-app dulu (kalau ada langkah sebelumnya di sesi ini), kalau tidak ke tujuan bawaan
-    if (s.history.length > 1) {
-      const prev = s.history[s.history.length - 2];
-      setHistory(s.history.slice(0, -1)); // buang entry saat ini, prev jadi atas stack
-      goto(prev);
-    } else goto(backTo);
-  };
+export function Subbar({
+  backTo,
+  title,
+  sub,
+  right,
+  onBack,
+}: {
+  backTo: string;
+  title: React.ReactNode;
+  sub?: React.ReactNode;
+  right?: React.ReactNode;
+  onBack?: () => boolean | void;
+}) {
+  const back = useSmartBack(backTo, onBack);
   return (
     <header className="subbar">
-      <button type="button" className="icon-btn" aria-label="Kembali" onClick={back}><IconBack /></button>
+      <button type="button" className="icon-btn" aria-label="Kembali" title="Kembali" onClick={back}><IconBack /></button>
       <div className="subbar__titles"><strong>{title}</strong>{sub != null && <span className="mono">{sub}</span>}</div>
       {right ?? <span className="subbar__spacer" aria-hidden="true" />}
     </header>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CATALOG, prod } from '../data';
 import { estimateBody, FIT_PREFERENCE_EASE, SKIN_TONES, generateStylistReport, scoreColorHarmony } from '../engine';
 import { useApp, STORE, Cloud, fmtK, inStock } from '../store';
-import { Subbar } from '../ui';
+import { Subbar, useSmartBack } from '../ui';
 import type { FitResult, SkinToneId } from '../types';
 
 const SHAPES = [
@@ -27,6 +27,7 @@ export function StudioScreen() {
 
   const bmi = Number(height) && Number(weight) ? Number(weight) / (Number(height) / 100) ** 2 : 0;
   const step = s.studioStep;
+  const smartBack = useSmartBack('shop');
 
   const compute = () => {
     const now = new Date().toISOString();
@@ -62,7 +63,17 @@ export function StudioScreen() {
 
   return (
     <section className="screen is-active" id="screen-studio" data-tab="studio" aria-label="Konsultasi ukuran">
-      <Subbar backTo="shop" title="Atelier Consultation" sub={step === 1 ? '01 / 02' : '02 / 02'} />
+      <Subbar
+        backTo="shop"
+        title="Atelier Consultation"
+        sub={step === 1 ? '01 / 02' : '02 / 02'}
+        onBack={() => {
+          if (step === 2) {
+            set({ studioStep: 1 });
+            return true;
+          }
+        }}
+      />
       <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={step === 1 ? 50 : 100}>
         <span style={{ width: step === 1 ? '50%' : '100%' }} />
       </div>
@@ -155,7 +166,7 @@ export function StudioScreen() {
         )}
       </div>
       <div className="screen__cta screen__cta--split">
-        <button type="button" className="btn btn--ghost" hidden={step === 1} onClick={() => set({ studioStep: 1 })}>Kembali</button>
+        <button type="button" className="btn btn--ghost" onClick={() => (step === 2 ? set({ studioStep: 1 }) : smartBack())}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" onClick={next}>{step === 1 ? 'Lanjut →' : 'Lihat Rekomendasi →'}</button>
       </div>
     </section>
@@ -189,6 +200,7 @@ function teeSvg(zones: any) {
 
 export function FittingScreen() {
   const { s, set, goto, ensureResult, addToCart } = useApp();
+  const smartBack = useSmartBack('studio');
   const p = prod(s.currentSku);
   const r: FitResult | null = s.profile ? ensureResult(p.sku_id) : null;
   const [anim, setAnim] = useState(0);
@@ -203,7 +215,10 @@ export function FittingScreen() {
             <div className="empty-state__art"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21z" /><path d="m7 13 2 2M10 10l2 2M13 7l2 2" /></svg></div>
             <p className="serif-sm">Belum ada profil tubuh</p>
             <p className="muted-sm">Isi konsultasi 30 detik di Studio untuk melihat ukuran tepat &amp; peta fit per zona.</p>
-            <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('studio')}>Isi Konsultasi →</button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={smartBack}>← Kembali</button>
+              <button type="button" className="btn btn--outline btn--sm" onClick={() => goto('studio')}>Isi Konsultasi →</button>
+            </div>
           </div>
         </div>
       </section>
@@ -384,7 +399,8 @@ export function FittingScreen() {
         <button type="button" className="btn btn--outline btn--sm btn--block" style={{ margin: '12px 0 2px' }}
           onClick={() => { set({ mirrorSku: p.sku_id, mirrorSize: null }); goto('cermin'); }}>🪞 Coba Cermin AI — lihat pas di badan lewat kamera</button>
       </div>
-      <div className="screen__cta">
+      <div className="screen__cta screen__cta--split">
+        <button type="button" className="btn btn--ghost" onClick={smartBack}>← Kembali</button>
         <button type="button" className="btn btn--dark btn--block" disabled={!available}
           onClick={() => { set({ selectedSize: preview.size_label }); addToCart(p.sku_id, preview.size_label); goto('bag'); }}>
           {available ? `Pesan dengan Ukuran ${preview.size_label} · ${fmtK(p.price)}` : `Size ${preview.size_label} Stok Habis`}
